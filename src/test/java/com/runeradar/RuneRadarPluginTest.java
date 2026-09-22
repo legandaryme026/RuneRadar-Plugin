@@ -1,13 +1,16 @@
-package com.example;
+package com.runeradar;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
 
-public class ExamplePluginTest
+public class RuneRadarPluginTest
 {
 	public static void main(String[] args) throws Exception
 	{
-		ExternalPluginManager.loadBuiltin(ExamplePlugin.class);
+		ExternalPluginManager.loadBuiltin(
+				RuneRadarPlugin.class
+		);
+
 		RuneLite.main(args);
 	}
 }
