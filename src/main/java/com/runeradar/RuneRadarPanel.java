@@ -43,7 +43,7 @@ public class RuneRadarPanel extends PluginPanel
     private static final Color RED =
             new Color(220, 90, 90);
 
-    private static final int RESULT_LIMIT = 10;
+    private static final int RESULT_LIMIT = 20;
 
     private static final int AUTO_REFRESH_SECONDS = 60;
 
@@ -59,7 +59,7 @@ public class RuneRadarPanel extends PluginPanel
             NumberFormat.getIntegerInstance();
 
     // ========================================================
-    // CASH STACK
+    // CASH
     // ========================================================
 
     private final JTextField cashInput =
@@ -78,16 +78,16 @@ public class RuneRadarPanel extends PluginPanel
     // ========================================================
 
     private final JButton strongButton =
-            new JButton("Strong Flips");
+            new JButton("Strong");
 
     private final JButton moreButton =
-            new JButton("More Opportunities");
+            new JButton("More");
 
     private String currentResultMode =
             "STRONG";
 
     // ========================================================
-    // FLIP TYPE
+    // FLIP TYPES
     // ========================================================
 
     private final JButton fastButton =
@@ -98,6 +98,12 @@ public class RuneRadarPanel extends PluginPanel
 
     private final JButton slowButton =
             new JButton("Slow");
+
+    private final JButton highProfitButton =
+            new JButton("High Profit");
+
+    private final JButton allButton =
+            new JButton("All");
 
     private String currentFlipType =
             "FAST";
@@ -152,10 +158,31 @@ public class RuneRadarPanel extends PluginPanel
     private final JPanel advancedPanel =
             new JPanel();
 
+    private final JLabel netProfitPerItemLabel =
+            new JLabel();
+
+    private final JLabel grossProfitPerItemLabel =
+            new JLabel();
+
+    private final JLabel taxPerItemLabel =
+            new JLabel();
+
+    private final JLabel totalTaxLabel =
+            new JLabel();
+
+    private final JLabel grossExpectedProfitLabel =
+            new JLabel();
+
+    private final JLabel breakEvenLabel =
+            new JLabel();
+
+    private final JLabel netSellPriceLabel =
+            new JLabel();
+
     private final JLabel roiLabel =
             new JLabel();
 
-    private final JLabel profitPerItemLabel =
+    private final JLabel grossRoiLabel =
             new JLabel();
 
     private final JLabel confidenceLabel =
@@ -168,6 +195,15 @@ public class RuneRadarPanel extends PluginPanel
             new JLabel();
 
     private final JLabel capitalUsedLabel =
+            new JLabel();
+
+    private final JLabel cashAllowsLabel =
+            new JLabel();
+
+    private final JLabel buyLimitLabel =
+            new JLabel();
+
+    private final JLabel liquidityQtyLabel =
             new JLabel();
 
     private boolean advancedVisible =
@@ -357,7 +393,7 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // TOP SECTION
+    // TOP
     // ========================================================
 
     private JPanel createTopSection()
@@ -465,7 +501,7 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // CASH STACK
+    // CASH
     // ========================================================
 
     private JPanel createCashSection()
@@ -853,12 +889,26 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // FAST / BALANCED / SLOW
+    // FLIP TYPES
     // ========================================================
 
     private JPanel createFlipTypeButtons()
     {
-        JPanel panel =
+        JPanel wrapper =
+                new JPanel();
+
+        wrapper.setLayout(
+                new BoxLayout(
+                        wrapper,
+                        BoxLayout.Y_AXIS
+                )
+        );
+
+        wrapper.setBackground(
+                BACKGROUND
+        );
+
+        JPanel topRow =
                 new JPanel(
                         new GridLayout(
                                 1,
@@ -868,7 +918,21 @@ public class RuneRadarPanel extends PluginPanel
                         )
                 );
 
-        panel.setBackground(
+        topRow.setBackground(
+                BACKGROUND
+        );
+
+        JPanel bottomRow =
+                new JPanel(
+                        new GridLayout(
+                                1,
+                                2,
+                                4,
+                                0
+                        )
+                );
+
+        bottomRow.setBackground(
                 BACKGROUND
         );
 
@@ -893,19 +957,55 @@ public class RuneRadarPanel extends PluginPanel
                         )
         );
 
-        panel.add(
+        highProfitButton.addActionListener(
+                event ->
+                        setFlipType(
+                                "HIGH_PROFIT"
+                        )
+        );
+
+        allButton.addActionListener(
+                event ->
+                        setFlipType(
+                                "ALL"
+                        )
+        );
+
+        topRow.add(
                 fastButton
         );
 
-        panel.add(
+        topRow.add(
                 balancedButton
         );
 
-        panel.add(
+        topRow.add(
                 slowButton
         );
 
-        return panel;
+        bottomRow.add(
+                highProfitButton
+        );
+
+        bottomRow.add(
+                allButton
+        );
+
+        wrapper.add(
+                topRow
+        );
+
+        wrapper.add(
+                Box.createVerticalStrut(
+                        4
+                )
+        );
+
+        wrapper.add(
+                bottomRow
+        );
+
+        return wrapper;
     }
 
     private void setFlipType(
@@ -949,10 +1049,24 @@ public class RuneRadarPanel extends PluginPanel
                         "SLOW"
                 )
         );
+
+        highProfitButton.setEnabled(
+                !blockingLoad
+                        && !currentFlipType.equals(
+                        "HIGH_PROFIT"
+                )
+        );
+
+        allButton.setEnabled(
+                !blockingLoad
+                        && !currentFlipType.equals(
+                        "ALL"
+                )
+        );
     }
 
     // ========================================================
-    // MAIN RESULT CARD
+    // MAIN CARD
     // ========================================================
 
     private JPanel createMainSection()
@@ -1076,7 +1190,7 @@ public class RuneRadarPanel extends PluginPanel
 
         card.add(
                 sectionTitle(
-                        "EXPECTED RESULT"
+                        "EXPECTED NET RESULT"
                 )
         );
 
@@ -1260,7 +1374,7 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // ADVANCED DETAILS
+    // ADVANCED
     // ========================================================
 
     private void createAdvancedPanel()
@@ -1281,29 +1395,31 @@ public class RuneRadarPanel extends PluginPanel
                         toggleAdvancedDetails()
         );
 
-        prepareAdvancedLabel(
-                roiLabel
-        );
+        JLabel[] labels = {
+                netProfitPerItemLabel,
+                grossProfitPerItemLabel,
+                taxPerItemLabel,
+                totalTaxLabel,
+                grossExpectedProfitLabel,
+                breakEvenLabel,
+                netSellPriceLabel,
+                roiLabel,
+                grossRoiLabel,
+                confidenceLabel,
+                liquidityLabel,
+                gpNeededLabel,
+                capitalUsedLabel,
+                cashAllowsLabel,
+                buyLimitLabel,
+                liquidityQtyLabel
+        };
 
-        prepareAdvancedLabel(
-                profitPerItemLabel
-        );
-
-        prepareAdvancedLabel(
-                confidenceLabel
-        );
-
-        prepareAdvancedLabel(
-                liquidityLabel
-        );
-
-        prepareAdvancedLabel(
-                gpNeededLabel
-        );
-
-        prepareAdvancedLabel(
-                capitalUsedLabel
-        );
+        for (JLabel label : labels)
+        {
+            prepareAdvancedLabel(
+                    label
+            );
+        }
 
         advancedPanel.add(
                 sectionTitle(
@@ -1317,62 +1433,87 @@ public class RuneRadarPanel extends PluginPanel
                 )
         );
 
-        advancedPanel.add(
+        addAdvancedLabel(
+                netProfitPerItemLabel
+        );
+
+        addAdvancedLabel(
+                grossProfitPerItemLabel
+        );
+
+        addAdvancedLabel(
+                taxPerItemLabel
+        );
+
+        addAdvancedLabel(
+                totalTaxLabel
+        );
+
+        addAdvancedLabel(
+                grossExpectedProfitLabel
+        );
+
+        addAdvancedLabel(
+                breakEvenLabel
+        );
+
+        addAdvancedLabel(
+                netSellPriceLabel
+        );
+
+        addAdvancedLabel(
                 roiLabel
         );
 
-        advancedPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
+        addAdvancedLabel(
+                grossRoiLabel
         );
 
-        advancedPanel.add(
-                profitPerItemLabel
-        );
-
-        advancedPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
-        );
-
-        advancedPanel.add(
+        addAdvancedLabel(
                 confidenceLabel
         );
 
-        advancedPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
-        );
-
-        advancedPanel.add(
+        addAdvancedLabel(
                 liquidityLabel
         );
 
-        advancedPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
-        );
-
-        advancedPanel.add(
+        addAdvancedLabel(
                 gpNeededLabel
         );
 
-        advancedPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
+        addAdvancedLabel(
+                capitalUsedLabel
         );
 
-        advancedPanel.add(
-                capitalUsedLabel
+        addAdvancedLabel(
+                cashAllowsLabel
+        );
+
+        addAdvancedLabel(
+                buyLimitLabel
+        );
+
+        addAdvancedLabel(
+                liquidityQtyLabel
         );
 
         advancedPanel.setVisible(
                 false
+        );
+    }
+
+    private void addAdvancedLabel(
+            JLabel label
+    )
+    {
+        advancedPanel.add(
+                label
+        );
+
+        advancedPanel.add(
+                Box.createVerticalStrut(
+                        3
+                )
         );
     }
 
@@ -1446,7 +1587,7 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // BOTTOM SECTION
+    // BOTTOM
     // ========================================================
 
     private JPanel createBottomSection()
@@ -1522,10 +1663,6 @@ public class RuneRadarPanel extends PluginPanel
         wrapper.add(
                 refreshButton
         );
-
-        // ----------------------------------------------------
-        // OPTIONAL PROFIT TRACKER
-        // ----------------------------------------------------
 
         wrapper.add(
                 Box.createVerticalStrut(
@@ -1645,8 +1782,7 @@ public class RuneRadarPanel extends PluginPanel
 
                                             recommendations =
                                                     new ArrayList<>(
-                                                            response
-                                                                    .getRecommendations()
+                                                            response.getRecommendations()
                                                     );
 
                                             updatedAt =
@@ -1763,7 +1899,7 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // LOADING / ERRORS
+    // LOADING
     // ========================================================
 
     private void setLoadingState()
@@ -1783,11 +1919,11 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         profitLabel.setText(
-                "Expected profit: -"
+                "Expected net profit: -"
         );
 
         quantityLabel.setText(
-                "You can buy: -"
+                "Recommended buy qty: -"
         );
 
         riskLabel.setText(
@@ -1840,11 +1976,11 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         profitLabel.setText(
-                "Expected profit: -"
+                "Expected net profit: -"
         );
 
         quantityLabel.setText(
-                "You can buy: -"
+                "Recommended buy qty: -"
         );
 
         riskLabel.setText(
@@ -1866,7 +2002,7 @@ public class RuneRadarPanel extends PluginPanel
         clearAdvancedDetails();
 
         updatedLabel.setText(
-                "Start the RuneRadar Python API."
+                "Could not reach hosted RuneRadar API."
         );
 
         statusLabel.setForeground(
@@ -1883,7 +2019,7 @@ public class RuneRadarPanel extends PluginPanel
     }
 
     // ========================================================
-    // SELECTION PRESERVATION
+    // SELECTION
     // ========================================================
 
     private Integer getSelectedItemId()
@@ -1930,6 +2066,7 @@ public class RuneRadarPanel extends PluginPanel
         if (recommendations.isEmpty())
         {
             currentIndex = 0;
+
             return;
         }
 
@@ -1980,24 +2117,11 @@ public class RuneRadarPanel extends PluginPanel
             }
         }
 
-        if (
-                currentIndex
-                        >= recommendations.size()
-        )
-        {
-            currentIndex =
-                    recommendations.size()
-                            - 1;
-        }
-
-        if (currentIndex < 0)
-        {
-            currentIndex = 0;
-        }
+        currentIndex = 0;
     }
 
     // ========================================================
-    // DISPLAY RESULT
+    // DISPLAY
     // ========================================================
 
     private void showCurrentFlip()
@@ -2023,11 +2147,11 @@ public class RuneRadarPanel extends PluginPanel
             );
 
             profitLabel.setText(
-                    "Expected profit: -"
+                    "Expected net profit: -"
             );
 
             quantityLabel.setText(
-                    "You can buy: -"
+                    "Recommended buy qty: -"
             );
 
             riskLabel.setText(
@@ -2049,11 +2173,7 @@ public class RuneRadarPanel extends PluginPanel
             clearAdvancedDetails();
 
             updatedLabel.setText(
-                    currentResultMode.equals(
-                            "MORE"
-                    )
-                            ? "No extra opportunities right now."
-                            : "No strong flips right now."
+                    "No matching opportunities right now."
             );
 
             statusLabel.setForeground(
@@ -2072,7 +2192,8 @@ public class RuneRadarPanel extends PluginPanel
         if (currentIndex < 0)
         {
             currentIndex =
-                    recommendations.size() - 1;
+                    recommendations.size()
+                            - 1;
         }
 
         if (
@@ -2107,22 +2228,24 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         profitLabel.setText(
-                "Expected profit: +"
+                "Expected net profit: +"
                         + formatGp(
-                        item.getExpectedProfit()
+                        item.getNetExpectedProfit()
                 )
         );
 
         quantityLabel.setText(
-                "You can buy: "
+                "Recommended buy qty: "
                         + numberFormat.format(
-                        item.getQuantity()
+                        item.getRecommendedQty()
                 )
         );
 
         riskLabel.setText(
                 "Risk: "
-                        + item.getRisk()
+                        + safeText(
+                        item.getRisk()
+                )
         );
 
         speedLabel.setText(
@@ -2145,29 +2268,83 @@ public class RuneRadarPanel extends PluginPanel
                         + "/100"
         );
 
+        netProfitPerItemLabel.setText(
+                "Net profit/item: +"
+                        + formatGp(
+                        item.getNetProfitPerItem()
+                )
+        );
+
+        grossProfitPerItemLabel.setText(
+                "Gross profit/item: +"
+                        + formatGp(
+                        item.getGrossProfitPerItem()
+                )
+        );
+
+        taxPerItemLabel.setText(
+                "GE tax/item: -"
+                        + formatGp(
+                        item.getTaxPerItem()
+                )
+        );
+
+        totalTaxLabel.setText(
+                "Total GE tax: -"
+                        + formatGp(
+                        item.getTotalTax()
+                )
+        );
+
+        grossExpectedProfitLabel.setText(
+                "Gross expected profit: +"
+                        + formatGp(
+                        item.getGrossExpectedProfit()
+                )
+        );
+
+        breakEvenLabel.setText(
+                "Break-even sell: "
+                        + formatGp(
+                        item.getBreakEvenSell()
+                )
+        );
+
+        netSellPriceLabel.setText(
+                "Net sell after tax: "
+                        + formatGp(
+                        item.getNetSellPrice()
+                )
+        );
+
         roiLabel.setText(
-                "ROI: "
+                "Net ROI: "
                         + String.format(
-                        "%.2f%%",
+                        "%.3f%%",
                         item.getRoi()
                 )
         );
 
-        profitPerItemLabel.setText(
-                "Profit per item: "
-                        + formatGp(
-                        item.getProfitPerItem()
+        grossRoiLabel.setText(
+                "Gross ROI: "
+                        + String.format(
+                        "%.3f%%",
+                        item.getGrossRoi()
                 )
         );
 
         confidenceLabel.setText(
                 "Confidence: "
-                        + item.getConfidence()
+                        + safeText(
+                        item.getConfidence()
+                )
         );
 
         liquidityLabel.setText(
                 "Liquidity: "
-                        + item.getLiquidity()
+                        + safeText(
+                        item.getLiquidity()
+                )
         );
 
         gpNeededLabel.setText(
@@ -2180,18 +2357,77 @@ public class RuneRadarPanel extends PluginPanel
         capitalUsedLabel.setText(
                 "Cash used: "
                         + String.format(
-                        "%.1f%%",
+                        "%.2f%%",
                         item.getCapitalUsedPercent()
                 )
         );
 
-        updatedLabel.setText(
+        cashAllowsLabel.setText(
+                "Cash allows: "
+                        + numberFormat.format(
+                        item.getCashAllows()
+                )
+        );
+
+        if (item.isBuyLimitKnown())
+        {
+            buyLimitLabel.setText(
+                    "GE buy limit: "
+                            + numberFormat.format(
+                            item.getBuyLimit()
+                    )
+            );
+        }
+        else
+        {
+            buyLimitLabel.setText(
+                    "GE buy limit: Unknown"
+            );
+        }
+
+        liquidityQtyLabel.setText(
+                "Liquidity qty cap: "
+                        + numberFormat.format(
+                        item.getLiquidityQuantity()
+                )
+        );
+
+        if (
+                currentFlipType.equals(
+                        "HIGH_PROFIT"
+                )
+        )
+        {
+            updatedLabel.setText(
+                    "High Profit • NET after GE tax • auto-refresh 60s"
+            );
+        }
+        else if (
+                currentFlipType.equals(
+                        "ALL"
+                )
+        )
+        {
+            updatedLabel.setText(
+                    "All opportunities • NET after GE tax • auto-refresh 60s"
+            );
+        }
+        else if (
                 currentResultMode.equals(
                         "MORE"
                 )
-                        ? "More Opportunities • score 60+ • auto-refresh 60s"
-                        : "Strong recommendation • auto-refresh 60s"
-        );
+        )
+        {
+            updatedLabel.setText(
+                    "More Opportunities • NET after GE tax • auto-refresh 60s"
+            );
+        }
+        else
+        {
+            updatedLabel.setText(
+                    "Strong recommendation • NET after GE tax • auto-refresh 60s"
+            );
+        }
 
         updateLiveStatus();
 
@@ -2200,6 +2436,131 @@ public class RuneRadarPanel extends PluginPanel
         revalidate();
 
         repaint();
+    }
+
+    // ========================================================
+    // MODE LABEL
+    // ========================================================
+
+    private void updateModeLabel()
+    {
+        String prefix =
+                currentResultMode.equals(
+                        "MORE"
+                )
+                        ? "MORE"
+                        : "STRONG";
+
+        String type;
+
+        if (
+                currentFlipType.equals(
+                        "HIGH_PROFIT"
+                )
+        )
+        {
+            type =
+                    "HIGH PROFIT";
+        }
+        else
+        {
+            type =
+                    currentFlipType;
+        }
+
+        modeLabel.setText(
+                prefix
+                        + " • "
+                        + type
+        );
+
+        if (
+                currentResultMode.equals(
+                        "MORE"
+                )
+        )
+        {
+            modeLabel.setForeground(
+                    MUTED
+            );
+        }
+        else
+        {
+            modeLabel.setForeground(
+                    GREEN
+            );
+        }
+    }
+
+    // ========================================================
+    // ADVANCED CLEAR
+    // ========================================================
+
+    private void clearAdvancedDetails()
+    {
+        netProfitPerItemLabel.setText(
+                "Net profit/item: -"
+        );
+
+        grossProfitPerItemLabel.setText(
+                "Gross profit/item: -"
+        );
+
+        taxPerItemLabel.setText(
+                "GE tax/item: -"
+        );
+
+        totalTaxLabel.setText(
+                "Total GE tax: -"
+        );
+
+        grossExpectedProfitLabel.setText(
+                "Gross expected profit: -"
+        );
+
+        breakEvenLabel.setText(
+                "Break-even sell: -"
+        );
+
+        netSellPriceLabel.setText(
+                "Net sell after tax: -"
+        );
+
+        roiLabel.setText(
+                "Net ROI: -"
+        );
+
+        grossRoiLabel.setText(
+                "Gross ROI: -"
+        );
+
+        confidenceLabel.setText(
+                "Confidence: -"
+        );
+
+        liquidityLabel.setText(
+                "Liquidity: -"
+        );
+
+        gpNeededLabel.setText(
+                "GP needed: -"
+        );
+
+        capitalUsedLabel.setText(
+                "Cash used: -"
+        );
+
+        cashAllowsLabel.setText(
+                "Cash allows: -"
+        );
+
+        buyLimitLabel.setText(
+                "GE buy limit: -"
+        );
+
+        liquidityQtyLabel.setText(
+                "Liquidity qty cap: -"
+        );
     }
 
     // ========================================================
@@ -2246,63 +2607,8 @@ public class RuneRadarPanel extends PluginPanel
         );
     }
 
-    private void updateModeLabel()
-    {
-        if (
-                currentResultMode.equals(
-                        "MORE"
-                )
-        )
-        {
-            modeLabel.setText(
-                    "MORE OPPORTUNITIES"
-            );
-
-            modeLabel.setForeground(
-                    MUTED
-            );
-        }
-        else
-        {
-            modeLabel.setText(
-                    "STRONG FLIP"
-            );
-
-            modeLabel.setForeground(
-                    GREEN
-            );
-        }
-    }
-
-    private void clearAdvancedDetails()
-    {
-        roiLabel.setText(
-                "ROI: -"
-        );
-
-        profitPerItemLabel.setText(
-                "Profit per item: -"
-        );
-
-        confidenceLabel.setText(
-                "Confidence: -"
-        );
-
-        liquidityLabel.setText(
-                "Liquidity: -"
-        );
-
-        gpNeededLabel.setText(
-                "GP needed: -"
-        );
-
-        capitalUsedLabel.setText(
-                "Cash used: -"
-        );
-    }
-
     // ========================================================
-    // PREVIOUS / NEXT
+    // NAVIGATION
     // ========================================================
 
     private void updateNavigationButtons()
@@ -2335,7 +2641,8 @@ public class RuneRadarPanel extends PluginPanel
         if (currentIndex < 0)
         {
             currentIndex =
-                    recommendations.size() - 1;
+                    recommendations.size()
+                            - 1;
         }
 
         showCurrentFlip();
@@ -2386,6 +2693,21 @@ public class RuneRadarPanel extends PluginPanel
         ) + " gp";
     }
 
+    private String safeText(
+            String value
+    )
+    {
+        if (
+                value == null
+                        || value.trim().isEmpty()
+        )
+        {
+            return "-";
+        }
+
+        return value;
+    }
+
     private String friendlyTradingSpeed(
             String value
     )
@@ -2410,10 +2732,19 @@ public class RuneRadarPanel extends PluginPanel
                 )
         )
         {
-            return "GOOD";
+            return "BALANCED";
         }
 
-        return "SLOW";
+        if (
+                value.equalsIgnoreCase(
+                        "SLOW"
+                )
+        )
+        {
+            return "SLOW";
+        }
+
+        return value;
     }
 
     private String friendlyStability(
@@ -2463,3 +2794,4 @@ public class RuneRadarPanel extends PluginPanel
         );
     }
 }
+
