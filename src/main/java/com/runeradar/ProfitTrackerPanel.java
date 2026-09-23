@@ -1,6 +1,7 @@
 package com.runeradar;
 
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.text.NumberFormat;
@@ -23,6 +24,12 @@ public class ProfitTrackerPanel extends JPanel
 
     private static final Color CARD_BACKGROUND =
             new Color(45, 45, 45);
+
+    private static final Color INNER_BACKGROUND =
+            new Color(40, 40, 40);
+
+    private static final Color BORDER =
+            new Color(65, 65, 65);
 
     private static final Color TEXT =
             new Color(220, 220, 220);
@@ -48,7 +55,7 @@ public class ProfitTrackerPanel extends JPanel
             Instant.now().getEpochSecond();
 
     private final JButton toggleButton =
-            new JButton("Profit Tracker ▸");
+            new JButton("Profit Tracker");
 
     private final JPanel contentPanel =
             new JPanel();
@@ -130,13 +137,21 @@ public class ProfitTrackerPanel extends JPanel
 
         createContent();
 
+        toggleButton.setAlignmentX(
+                CENTER_ALIGNMENT
+        );
+
+        toggleButton.setToolTipText(
+                "Open or close Profit Tracker"
+        );
+
         add(
                 toggleButton
         );
 
         add(
                 Box.createVerticalStrut(
-                        5
+                        6
                 )
         );
 
@@ -176,37 +191,23 @@ public class ProfitTrackerPanel extends JPanel
         contentPanel.setBorder(
                 BorderFactory.createCompoundBorder(
                         BorderFactory.createLineBorder(
-                                new Color(
-                                        65,
-                                        65,
-                                        65
-                                )
+                                BORDER
                         ),
                         BorderFactory.createEmptyBorder(
+                                12,
                                 10,
-                                10,
-                                10,
+                                12,
                                 10
                         )
                 )
         );
 
         JLabel title =
-                new JLabel(
-                        "PROFIT TRACKER"
+                createSectionTitle(
+                        "PROFIT TRACKER",
+                        GOLD,
+                        12f
                 );
-
-        title.setForeground(
-                GOLD
-        );
-
-        title.setFont(
-                title.getFont()
-                        .deriveFont(
-                                Font.BOLD,
-                                11f
-                        )
-        );
 
         contentPanel.add(
                 title
@@ -214,58 +215,12 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        8
-                )
-        );
-
-        prepareStatLabel(
-                sessionProfitLabel
-        );
-
-        prepareStatLabel(
-                todayProfitLabel
-        );
-
-        prepareStatLabel(
-                totalProfitLabel
-        );
-
-        completedFlipsLabel.setForeground(
-                MUTED
-        );
-
-        contentPanel.add(
-                sessionProfitLabel
-        );
-
-        contentPanel.add(
-                Box.createVerticalStrut(
-                        3
+                        10
                 )
         );
 
         contentPanel.add(
-                todayProfitLabel
-        );
-
-        contentPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
-        );
-
-        contentPanel.add(
-                totalProfitLabel
-        );
-
-        contentPanel.add(
-                Box.createVerticalStrut(
-                        3
-                )
-        );
-
-        contentPanel.add(
-                completedFlipsLabel
+                createStatsCard()
         );
 
         contentPanel.add(
@@ -275,21 +230,11 @@ public class ProfitTrackerPanel extends JPanel
         );
 
         JLabel addTitle =
-                new JLabel(
-                        "ADD COMPLETED FLIP"
+                createSectionTitle(
+                        "ADD COMPLETED FLIP",
+                        MUTED,
+                        10f
                 );
-
-        addTitle.setForeground(
-                MUTED
-        );
-
-        addTitle.setFont(
-                addTitle.getFont()
-                        .deriveFont(
-                                Font.BOLD,
-                                10f
-                        )
-        );
 
         contentPanel.add(
                 addTitle
@@ -297,7 +242,7 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        6
+                        7
                 )
         );
 
@@ -326,7 +271,7 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        4
+                        5
                 )
         );
 
@@ -339,7 +284,7 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        4
+                        5
                 )
         );
 
@@ -352,7 +297,7 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        4
+                        5
                 )
         );
 
@@ -365,7 +310,7 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        7
+                        9
                 )
         );
 
@@ -377,14 +322,22 @@ public class ProfitTrackerPanel extends JPanel
                 "Net profit: -"
         );
 
+        calculatedProfitLabel.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
         contentPanel.add(
                 calculatedProfitLabel
         );
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        6
+                        7
                 )
+        );
+
+        saveFlipButton.setAlignmentX(
+                LEFT_ALIGNMENT
         );
 
         saveFlipButton.addActionListener(
@@ -413,6 +366,10 @@ public class ProfitTrackerPanel extends JPanel
                         )
         );
 
+        messageLabel.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
         contentPanel.add(
                 messageLabel
         );
@@ -424,21 +381,11 @@ public class ProfitTrackerPanel extends JPanel
         );
 
         JLabel historyTitle =
-                new JLabel(
-                        "RECENT FLIPS"
+                createSectionTitle(
+                        "RECENT FLIPS",
+                        MUTED,
+                        10f
                 );
-
-        historyTitle.setForeground(
-                MUTED
-        );
-
-        historyTitle.setFont(
-                historyTitle.getFont()
-                        .deriveFont(
-                                Font.BOLD,
-                                10f
-                        )
-        );
 
         contentPanel.add(
                 historyTitle
@@ -446,7 +393,7 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 Box.createVerticalStrut(
-                        6
+                        7
                 )
         );
 
@@ -461,9 +408,141 @@ public class ProfitTrackerPanel extends JPanel
                 CARD_BACKGROUND
         );
 
+        historyPanel.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
         contentPanel.add(
                 historyPanel
         );
+    }
+
+    private JPanel createStatsCard()
+    {
+        JPanel card =
+                new JPanel();
+
+        card.setLayout(
+                new BoxLayout(
+                        card,
+                        BoxLayout.Y_AXIS
+                )
+        );
+
+        card.setBackground(
+                INNER_BACKGROUND
+        );
+
+        card.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(
+                                BORDER
+                        ),
+                        BorderFactory.createEmptyBorder(
+                                9,
+                                9,
+                                9,
+                                9
+                        )
+                )
+        );
+
+        card.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        card.setMaximumSize(
+                new Dimension(
+                        Integer.MAX_VALUE,
+                        105
+                )
+        );
+
+        prepareStatLabel(
+                sessionProfitLabel
+        );
+
+        prepareStatLabel(
+                todayProfitLabel
+        );
+
+        prepareStatLabel(
+                totalProfitLabel
+        );
+
+        completedFlipsLabel.setForeground(
+                MUTED
+        );
+
+        completedFlipsLabel.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        card.add(
+                sessionProfitLabel
+        );
+
+        card.add(
+                Box.createVerticalStrut(
+                        3
+                )
+        );
+
+        card.add(
+                todayProfitLabel
+        );
+
+        card.add(
+                Box.createVerticalStrut(
+                        3
+                )
+        );
+
+        card.add(
+                totalProfitLabel
+        );
+
+        card.add(
+                Box.createVerticalStrut(
+                        5
+                )
+        );
+
+        card.add(
+                completedFlipsLabel
+        );
+
+        return card;
+    }
+
+    private JLabel createSectionTitle(
+            String text,
+            Color color,
+            float size
+    )
+    {
+        JLabel label =
+                new JLabel(
+                        text
+                );
+
+        label.setForeground(
+                color
+        );
+
+        label.setFont(
+                label.getFont()
+                        .deriveFont(
+                                Font.BOLD,
+                                size
+                        )
+        );
+
+        label.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        return label;
     }
 
     private JPanel createInputRow(
@@ -476,13 +555,24 @@ public class ProfitTrackerPanel extends JPanel
                         new GridLayout(
                                 1,
                                 2,
-                                5,
+                                8,
                                 0
                         )
                 );
 
         panel.setBackground(
                 CARD_BACKGROUND
+        );
+
+        panel.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        panel.setMaximumSize(
+                new Dimension(
+                        Integer.MAX_VALUE,
+                        28
+                )
         );
 
         JLabel label =
@@ -520,6 +610,10 @@ public class ProfitTrackerPanel extends JPanel
                                 12f
                         )
         );
+
+        label.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
     }
 
     // ========================================================
@@ -535,10 +629,13 @@ public class ProfitTrackerPanel extends JPanel
                 expanded
         );
 
+        /*
+         * Keep the button text short so RuneLite's narrow sidebar
+         * never truncates it. The open/closed state is already
+         * visually obvious from the content below the button.
+         */
         toggleButton.setText(
-                expanded
-                        ? "Profit Tracker ▾"
-                        : "Profit Tracker ▸"
+                "Profit Tracker"
         );
 
         if (expanded)
@@ -838,6 +935,10 @@ public class ProfitTrackerPanel extends JPanel
                     MUTED
             );
 
+            empty.setAlignmentX(
+                    LEFT_ALIGNMENT
+            );
+
             historyPanel.add(
                     empty
             );
@@ -857,7 +958,7 @@ public class ProfitTrackerPanel extends JPanel
 
                 historyPanel.add(
                         Box.createVerticalStrut(
-                                5
+                                6
                         )
                 );
             }
@@ -882,19 +983,31 @@ public class ProfitTrackerPanel extends JPanel
         );
 
         row.setBackground(
-                new Color(
-                        40,
-                        40,
-                        40
-                )
+                INNER_BACKGROUND
         );
 
         row.setBorder(
-                BorderFactory.createEmptyBorder(
-                        5,
-                        6,
-                        5,
-                        6
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(
+                                BORDER
+                        ),
+                        BorderFactory.createEmptyBorder(
+                                7,
+                                8,
+                                7,
+                                8
+                        )
+                )
+        );
+
+        row.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        row.setMaximumSize(
+                new Dimension(
+                        Integer.MAX_VALUE,
+                        72
                 )
         );
 
@@ -915,6 +1028,10 @@ public class ProfitTrackerPanel extends JPanel
                         )
         );
 
+        item.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
         JLabel profit =
                 new JLabel(
                         formatSignedGp(
@@ -926,6 +1043,18 @@ public class ProfitTrackerPanel extends JPanel
                 getProfitColor(
                         record.getNetProfit()
                 )
+        );
+
+        profit.setFont(
+                profit.getFont()
+                        .deriveFont(
+                                Font.BOLD,
+                                11f
+                        )
+        );
+
+        profit.setAlignmentX(
+                LEFT_ALIGNMENT
         );
 
         JLabel info =
@@ -951,12 +1080,28 @@ public class ProfitTrackerPanel extends JPanel
                         )
         );
 
+        info.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
         row.add(
                 item
         );
 
         row.add(
+                Box.createVerticalStrut(
+                        2
+                )
+        );
+
+        row.add(
                 profit
+        );
+
+        row.add(
+                Box.createVerticalStrut(
+                        2
+                )
         );
 
         row.add(

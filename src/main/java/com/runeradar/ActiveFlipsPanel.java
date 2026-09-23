@@ -333,9 +333,14 @@ public class ActiveFlipsPanel extends JPanel
     private JPanel createEmptyState()
     {
         JPanel panel =
-                new JPanel(
-                        new BorderLayout()
-                );
+                new JPanel();
+
+        panel.setLayout(
+                new BoxLayout(
+                        panel,
+                        BoxLayout.Y_AXIS
+                )
+        );
 
         panel.setBackground(
                 CARD_BACKGROUND
@@ -347,39 +352,143 @@ public class ActiveFlipsPanel extends JPanel
                                 BORDER
                         ),
                         BorderFactory.createEmptyBorder(
-                                14,
-                                10,
-                                14,
-                                10
+                                16,
+                                8,
+                                16,
+                                8
                         )
                 )
-        );
-
-        JLabel label =
-                new JLabel(
-                        "<html><div style='text-align:center;'>"
-                                + "No active flips yet.<br>"
-                                + "<span style='color:#aaaaaa;'>"
-                                + "Start a flip from a RuneRadar recommendation."
-                                + "</span>"
-                                + "</div></html>",
-                        SwingConstants.CENTER
-                );
-
-        label.setForeground(
-                TEXT
-        );
-
-        panel.add(
-                label,
-                BorderLayout.CENTER
         );
 
         panel.setMaximumSize(
                 new Dimension(
                         Integer.MAX_VALUE,
-                        90
+                        125
                 )
+        );
+
+        panel.setPreferredSize(
+                new Dimension(
+                        0,
+                        125
+                )
+        );
+
+        JLabel title =
+                new JLabel(
+                        "No active flips yet."
+                );
+
+        title.setForeground(
+                TEXT
+        );
+
+        title.setFont(
+                title.getFont()
+                        .deriveFont(
+                                Font.BOLD
+                        )
+        );
+
+        title.setHorizontalAlignment(
+                SwingConstants.CENTER
+        );
+
+        title.setAlignmentX(
+                CENTER_ALIGNMENT
+        );
+
+        JLabel line1 =
+                new JLabel(
+                        "Buy a loaded RuneRadar item"
+                );
+
+        line1.setForeground(
+                MUTED
+        );
+
+        line1.setHorizontalAlignment(
+                SwingConstants.CENTER
+        );
+
+        line1.setAlignmentX(
+                CENTER_ALIGNMENT
+        );
+
+        JLabel line2 =
+                new JLabel(
+                        "to start tracking it"
+                );
+
+        line2.setForeground(
+                MUTED
+        );
+
+        line2.setHorizontalAlignment(
+                SwingConstants.CENTER
+        );
+
+        line2.setAlignmentX(
+                CENTER_ALIGNMENT
+        );
+
+        JLabel line3 =
+                new JLabel(
+                        "automatically."
+                );
+
+        line3.setForeground(
+                MUTED
+        );
+
+        line3.setHorizontalAlignment(
+                SwingConstants.CENTER
+        );
+
+        line3.setAlignmentX(
+                CENTER_ALIGNMENT
+        );
+
+        panel.add(
+                Box.createVerticalGlue()
+        );
+
+        panel.add(
+                title
+        );
+
+        panel.add(
+                Box.createVerticalStrut(
+                        10
+                )
+        );
+
+        panel.add(
+                line1
+        );
+
+        panel.add(
+                Box.createVerticalStrut(
+                        2
+                )
+        );
+
+        panel.add(
+                line2
+        );
+
+        panel.add(
+                Box.createVerticalStrut(
+                        2
+                )
+        );
+
+        panel.add(
+                line3
+        );
+
+        panel.add(
+                Box.createVerticalGlue()
         );
 
         return panel;
