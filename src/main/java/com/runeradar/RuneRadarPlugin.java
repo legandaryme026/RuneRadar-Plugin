@@ -5,9 +5,6 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.client.config.ConfigManager;
@@ -31,12 +28,6 @@ import net.runelite.client.ui.NavigationButton;
 )
 public class RuneRadarPlugin extends Plugin
 {
-	private static final String BACKEND_PATH =
-			"C:\\Users\\danny steinmann\\Desktop\\RuneRadar\\dist\\RuneRadarBackend.exe";
-
-	private static final String HEALTH_URL =
-			"http://127.0.0.1:8765/health";
-
 	@Inject
 	private ClientToolbar clientToolbar;
 
@@ -46,13 +37,9 @@ public class RuneRadarPlugin extends Plugin
 	private RuneRadarPanel panel;
 	private NavigationButton navigationButton;
 
-	private Process backendProcess;
-
 	@Override
 	protected void startUp()
 	{
-		startBackendIfNeeded();
-
 		panel = new RuneRadarPanel(
 				config
 		);
@@ -73,7 +60,7 @@ public class RuneRadarPlugin extends Plugin
 		);
 
 		log.info(
-				"RuneRadar started"
+				"RuneRadar started using hosted API"
 		);
 	}
 
@@ -96,135 +83,6 @@ public class RuneRadarPlugin extends Plugin
 		log.info(
 				"RuneRadar stopped"
 		);
-	}
-
-	private void startBackendIfNeeded()
-	{
-		if (isBackendRunning())
-		{
-			log.info(
-					"RuneRadar backend already running"
-			);
-
-			return;
-		}
-
-		try
-		{
-			log.info(
-					"Starting RuneRadar backend"
-			);
-
-			ProcessBuilder processBuilder =
-					new ProcessBuilder(
-							BACKEND_PATH
-					);
-
-			processBuilder.redirectErrorStream(
-					true
-			);
-
-			backendProcess =
-					processBuilder.start();
-
-			waitForBackend();
-
-			if (isBackendRunning())
-			{
-				log.info(
-						"RuneRadar backend started successfully"
-				);
-			}
-			else
-			{
-				log.warn(
-						"RuneRadar backend did not respond in time"
-				);
-			}
-		}
-		catch (IOException exception)
-		{
-			log.error(
-					"Could not start RuneRadar backend",
-					exception
-			);
-		}
-	}
-
-	private boolean isBackendRunning()
-	{
-		HttpURLConnection connection =
-				null;
-
-		try
-		{
-			URL url =
-					new URL(
-							HEALTH_URL
-					);
-
-			connection =
-					(HttpURLConnection)
-							url.openConnection();
-
-			connection.setRequestMethod(
-					"GET"
-			);
-
-			connection.setConnectTimeout(
-					500
-			);
-
-			connection.setReadTimeout(
-					500
-			);
-
-			int responseCode =
-					connection.getResponseCode();
-
-			return responseCode >= 200
-					&& responseCode < 300;
-		}
-		catch (Exception exception)
-		{
-			return false;
-		}
-		finally
-		{
-			if (connection != null)
-			{
-				connection.disconnect();
-			}
-		}
-	}
-
-	private void waitForBackend()
-	{
-		for (
-				int attempt = 0;
-				attempt < 20;
-				attempt++
-		)
-		{
-			if (isBackendRunning())
-			{
-				return;
-			}
-
-			try
-			{
-				Thread.sleep(
-						250
-				);
-			}
-			catch (InterruptedException exception)
-			{
-				Thread.currentThread()
-						.interrupt();
-
-				return;
-			}
-		}
 	}
 
 	private BufferedImage createTemporaryIcon()
