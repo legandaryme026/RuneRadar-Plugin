@@ -1,7 +1,6 @@
 package com.runeradar;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.Reader;
@@ -24,10 +23,7 @@ public class ProfitTrackerStore
     private static final long GE_TAX_CAP_PER_ITEM =
             5_000_000L;
 
-    private final Gson gson =
-            new GsonBuilder()
-                    .setPrettyPrinting()
-                    .create();
+    private final Gson gson;
 
     private final Path storageFile;
 
@@ -36,6 +32,13 @@ public class ProfitTrackerStore
 
     public ProfitTrackerStore()
     {
+        gson =
+                RuneRadarApiClient
+                        .getInjectedGson()
+                        .newBuilder()
+                        .setPrettyPrinting()
+                        .create();
+
         storageFile =
                 createStoragePath();
 

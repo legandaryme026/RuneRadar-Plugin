@@ -1,7 +1,6 @@
 package com.runeradar;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
@@ -18,10 +17,7 @@ import java.util.UUID;
 
 public class ActiveFlipStore
 {
-    private static final Gson GSON =
-            new GsonBuilder()
-                    .setPrettyPrinting()
-                    .create();
+    private final Gson gson;
 
     private static final Type ACTIVE_FLIP_LIST_TYPE =
             new TypeToken<List<ActiveFlip>>()
@@ -50,6 +46,13 @@ public class ActiveFlipStore
 
     public ActiveFlipStore()
     {
+        gson =
+                RuneRadarApiClient
+                        .getInjectedGson()
+                        .newBuilder()
+                        .setPrettyPrinting()
+                        .create();
+
         load();
     }
 
@@ -632,7 +635,7 @@ public class ActiveFlipStore
             }
 
             List<ActiveFlip> loaded =
-                    GSON.fromJson(
+                    gson.fromJson(
                             json,
                             ACTIVE_FLIP_LIST_TYPE
                     );
@@ -724,7 +727,7 @@ public class ActiveFlipStore
             );
 
             String json =
-                    GSON.toJson(
+                    gson.toJson(
                             activeFlips
                     );
 

@@ -32,7 +32,7 @@ public class RuneRadarApiClient
                 injectedGson;
     }
 
-    private Gson getGson()
+    public static Gson getInjectedGson()
     {
         if (gson == null)
         {
@@ -169,7 +169,7 @@ public class RuneRadarApiClient
         }
 
         ApiResponse response =
-                getGson().fromJson(
+                getInjectedGson().fromJson(
                         responseText.toString(),
                         ApiResponse.class
                 );
