@@ -94,8 +94,19 @@ public class ProfitTrackerPanel extends JPanel
 
     public ProfitTrackerPanel()
     {
-        store =
-                new ProfitTrackerStore();
+        this(
+                new ProfitTrackerStore()
+        );
+    }
+
+    public ProfitTrackerPanel(
+            ProfitTrackerStore store
+    )
+    {
+        this.store =
+                store != null
+                        ? store
+                        : new ProfitTrackerStore();
 
         setLayout(
                 new BoxLayout(
@@ -740,7 +751,7 @@ public class ProfitTrackerPanel extends JPanel
     // STATS
     // ========================================================
 
-    private void refreshStats()
+    public void refreshStats()
     {
         long sessionProfit =
                 store.getSessionProfit(

@@ -226,8 +226,18 @@ public class RuneRadarPanel extends PluginPanel
     // PROFIT TRACKER
     // ========================================================
 
-    private final ProfitTrackerPanel profitTrackerPanel =
-            new ProfitTrackerPanel();
+    private final ProfitTrackerPanel profitTrackerPanel;
+
+    // ========================================================
+    // ACTIVE FLIPS
+    // ========================================================
+
+    private final ActiveFlipStore activeFlipStore;
+
+    private final ActiveFlipsPanel activeFlipsPanel;
+
+    private final JButton startActiveFlipButton =
+            new JButton("Start Active Flip");
 
     // ========================================================
     // DATA STATE
@@ -265,7 +275,53 @@ public class RuneRadarPanel extends PluginPanel
             RuneRadarConfig config
     )
     {
+        this(
+                config,
+                new ActiveFlipStore(),
+                null,
+                null
+        );
+    }
+
+    public RuneRadarPanel(
+            RuneRadarConfig config,
+            ActiveFlipStore activeFlipStore,
+            ActiveFlipsPanel activeFlipsPanel
+    )
+    {
+        this(
+                config,
+                activeFlipStore,
+                activeFlipsPanel,
+                null
+        );
+    }
+
+    public RuneRadarPanel(
+            RuneRadarConfig config,
+            ActiveFlipStore activeFlipStore,
+            ActiveFlipsPanel activeFlipsPanel,
+            ProfitTrackerPanel profitTrackerPanel
+    )
+    {
         this.config = config;
+
+        this.activeFlipStore =
+                activeFlipStore != null
+                        ? activeFlipStore
+                        : new ActiveFlipStore();
+
+        this.activeFlipsPanel =
+                activeFlipsPanel != null
+                        ? activeFlipsPanel
+                        : new ActiveFlipsPanel(
+                        this.activeFlipStore
+                );
+
+        this.profitTrackerPanel =
+                profitTrackerPanel != null
+                        ? profitTrackerPanel
+                        : new ProfitTrackerPanel();
 
         currentCashStack =
                 Math.max(
@@ -1312,6 +1368,25 @@ public class RuneRadarPanel extends PluginPanel
                 )
         );
 
+        startActiveFlipButton.setEnabled(
+                false
+        );
+
+        startActiveFlipButton.addActionListener(
+                event ->
+                        startCurrentFlip()
+        );
+
+        card.add(
+                startActiveFlipButton
+        );
+
+        card.add(
+                Box.createVerticalStrut(
+                        8
+                )
+        );
+
         createAdvancedPanel();
 
         card.add(
@@ -1671,10 +1746,134 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         wrapper.add(
+                activeFlipsPanel
+        );
+
+        wrapper.add(
+                Box.createVerticalStrut(
+                        10
+                )
+        );
+
+        wrapper.add(
                 profitTrackerPanel
         );
 
         return wrapper;
+    }
+
+    // ========================================================
+    // ACTIVE FLIPS
+    // ========================================================
+
+    private void startCurrentFlip()
+    {
+        if (
+                recommendations.isEmpty()
+                        || currentIndex < 0
+                        || currentIndex >= recommendations.size()
+        )
+        {
+            return;
+        }
+
+        RuneRadarApiClient.Recommendation item =
+                recommendations.get(
+                        currentIndex
+                );
+
+        if (hasActiveFlipForItem(item.getId()))
+        {
+            updateStartActiveFlipButton();
+
+            return;
+        }
+
+        activeFlipStore.addRecommendation(
+                item.getId(),
+                item.getName(),
+                item.getBuy(),
+                item.getSell(),
+                Math.toIntExact(
+                        item.getRecommendedQty()
+                ),
+                item.getNetExpectedProfit()
+        );
+
+        activeFlipsPanel.refresh();
+
+        updateStartActiveFlipButton();
+
+        updatedLabel.setText(
+                "Added to Active Flips • NET target after GE tax"
+        );
+
+        revalidate();
+
+        repaint();
+    }
+
+    private boolean hasActiveFlipForItem(
+            int itemId
+    )
+    {
+        for (
+                ActiveFlipStore.ActiveFlip flip
+                : activeFlipStore.getAll()
+        )
+        {
+            if (
+                    flip != null
+                            && !flip.isCompleted()
+                            && flip.getItemId() == itemId
+            )
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void updateStartActiveFlipButton()
+    {
+        if (
+                recommendations.isEmpty()
+                        || currentIndex < 0
+                        || currentIndex >= recommendations.size()
+        )
+        {
+            startActiveFlipButton.setText(
+                    "Start Active Flip"
+            );
+
+            startActiveFlipButton.setEnabled(
+                    false
+            );
+
+            return;
+        }
+
+        RuneRadarApiClient.Recommendation item =
+                recommendations.get(
+                        currentIndex
+                );
+
+        boolean alreadyActive =
+                hasActiveFlipForItem(
+                        item.getId()
+                );
+
+        startActiveFlipButton.setText(
+                alreadyActive
+                        ? "Already Active"
+                        : "Start Active Flip"
+        );
+
+        startActiveFlipButton.setEnabled(
+                !blockingLoad
+                        && !alreadyActive
+        );
     }
 
     // ========================================================
@@ -2018,6 +2217,27 @@ public class RuneRadarPanel extends PluginPanel
         updateNavigationButtons();
     }
 
+    public RuneRadarApiClient.Recommendation findLoadedRecommendationByItemId(
+            int itemId
+    )
+    {
+        for (
+                RuneRadarApiClient.Recommendation recommendation
+                : recommendations
+        )
+        {
+            if (
+                    recommendation != null
+                            && recommendation.getId() == itemId
+            )
+            {
+                return recommendation;
+            }
+        }
+
+        return null;
+    }
+
     // ========================================================
     // SELECTION
     // ========================================================
@@ -2185,6 +2405,8 @@ public class RuneRadarPanel extends PluginPanel
             );
 
             updateNavigationButtons();
+
+            updateStartActiveFlipButton();
 
             return;
         }
@@ -2432,6 +2654,8 @@ public class RuneRadarPanel extends PluginPanel
         updateLiveStatus();
 
         updateNavigationButtons();
+
+        updateStartActiveFlipButton();
 
         revalidate();
 
@@ -2794,4 +3018,3 @@ public class RuneRadarPanel extends PluginPanel
         );
     }
 }
-

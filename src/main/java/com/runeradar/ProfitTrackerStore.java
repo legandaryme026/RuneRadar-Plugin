@@ -185,6 +185,72 @@ public class ProfitTrackerStore
         return record;
     }
 
+    public synchronized FlipRecord addCompletedFlipExact(
+            String itemName,
+            long buyPrice,
+            long sellPrice,
+            long quantity,
+            long tax,
+            long netProfit
+    )
+    {
+        if (
+                itemName == null
+                        || itemName.trim().isEmpty()
+        )
+        {
+            throw new IllegalArgumentException(
+                    "Enter an item name."
+            );
+        }
+
+        if (buyPrice <= 0)
+        {
+            throw new IllegalArgumentException(
+                    "Buy price must be above 0."
+            );
+        }
+
+        if (sellPrice <= 0)
+        {
+            throw new IllegalArgumentException(
+                    "Sell price must be above 0."
+            );
+        }
+
+        if (quantity <= 0)
+        {
+            throw new IllegalArgumentException(
+                    "Quantity must be above 0."
+            );
+        }
+
+        FlipRecord record =
+                new FlipRecord(
+                        Instant.now()
+                                .getEpochSecond(),
+                        itemName.trim(),
+                        buyPrice,
+                        sellPrice,
+                        quantity,
+                        Math.max(
+                                tax,
+                                0
+                        ),
+                        netProfit
+                );
+
+        records.add(
+                record
+        );
+
+        sortNewestFirst();
+
+        save();
+
+        return record;
+    }
+
     // ========================================================
     // TAX
     // ========================================================
@@ -551,3 +617,4 @@ public class ProfitTrackerStore
         }
     }
 }
+
