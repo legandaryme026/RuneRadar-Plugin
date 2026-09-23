@@ -21,6 +21,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import okhttp3.OkHttpClient;
 
 @Slf4j
 @PluginDescriptor(
@@ -58,6 +59,9 @@ public class RuneRadarPlugin extends Plugin
 	@Inject
 	private Gson gson;
 
+	@Inject
+	private OkHttpClient httpClient;
+
 	private RuneRadarPanel panel;
 
 	private ActiveFlipStore activeFlipStore;
@@ -78,6 +82,10 @@ public class RuneRadarPlugin extends Plugin
 	{
 		RuneRadarApiClient.setGson(
 				gson
+		);
+
+		RuneRadarApiClient.setHttpClient(
+				httpClient
 		);
 
 		activeFlipStore =

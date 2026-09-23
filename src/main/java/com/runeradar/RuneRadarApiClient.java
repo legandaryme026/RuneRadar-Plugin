@@ -2,13 +2,12 @@ package com.runeradar;
 
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 
 public class RuneRadarApiClient
 {
@@ -16,6 +15,8 @@ public class RuneRadarApiClient
             "https://runeradar-production.up.railway.app";
 
     private static Gson gson;
+
+    private static OkHttpClient httpClient;
 
     public static void setGson(
             Gson injectedGson
@@ -42,6 +43,33 @@ public class RuneRadarApiClient
         }
 
         return gson;
+    }
+
+    public static void setHttpClient(
+            OkHttpClient injectedHttpClient
+    )
+    {
+        if (injectedHttpClient == null)
+        {
+            throw new IllegalArgumentException(
+                    "Injected OkHttpClient cannot be null."
+            );
+        }
+
+        httpClient =
+                injectedHttpClient;
+    }
+
+    private static OkHttpClient getInjectedHttpClient()
+    {
+        if (httpClient == null)
+        {
+            throw new IllegalStateException(
+                    "RuneRadar OkHttpClient has not been initialized."
+            );
+        }
+
+        return httpClient;
     }
 
     public ApiResponse getRecommendations(
@@ -97,80 +125,54 @@ public class RuneRadarApiClient
                         + "&type=" + cleanedFlipType
                         + "&limit=" + limit;
 
-        URL url =
-                new URL(
-                        urlText
-                );
+        Request request =
+                new Request.Builder()
+                        .url(
+                                urlText
+                        )
+                        .get()
+                        .header(
+                                "Accept",
+                                "application/json"
+                        )
+                        .build();
 
-        HttpURLConnection connection =
-                (HttpURLConnection)
-                        url.openConnection();
-
-        connection.setRequestMethod(
-                "GET"
-        );
-
-        connection.setConnectTimeout(
-                5000
-        );
-
-        connection.setReadTimeout(
-                15000
-        );
-
-        connection.setRequestProperty(
-                "Accept",
-                "application/json"
-        );
-
-        int responseCode =
-                connection.getResponseCode();
-
-        if (
-                responseCode
-                        != 200
-        )
-        {
-            throw new RuntimeException(
-                    "RuneRadar API returned HTTP "
-                            + responseCode
-            );
-        }
-
-        StringBuilder responseText =
-                new StringBuilder();
+        String responseText;
 
         try (
-                BufferedReader reader =
-                        new BufferedReader(
-                                new InputStreamReader(
-                                        connection
-                                                .getInputStream(),
-                                        StandardCharsets.UTF_8
+                Response response =
+                        getInjectedHttpClient()
+                                .newCall(
+                                        request
                                 )
-                        )
+                                .execute()
         )
         {
-            String line;
-
-            while (
-                    (line = reader.readLine())
-                            != null
-            )
+            if (!response.isSuccessful())
             {
-                responseText.append(
-                        line
+                throw new RuntimeException(
+                        "RuneRadar API returned HTTP "
+                                + response.code()
                 );
             }
-        }
-        finally
-        {
-            connection.disconnect();
+
+            ResponseBody responseBody =
+                    response.body();
+
+            if (responseBody == null)
+            {
+                throw new RuntimeException(
+                        "RuneRadar API returned no response body."
+                );
+            }
+
+            responseText =
+                    responseBody.string();
         }
 
         ApiResponse response =
                 getInjectedGson().fromJson(
-                        responseText.toString(),
+                        responseText,
                         ApiResponse.class
                 );
 

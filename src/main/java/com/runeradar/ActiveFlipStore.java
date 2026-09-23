@@ -2,6 +2,7 @@ package com.runeradar;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -15,6 +16,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 public class ActiveFlipStore
 {
     private final Gson gson;
@@ -663,9 +665,9 @@ public class ActiveFlipStore
         }
         catch (Exception exception)
         {
-            System.err.println(
-                    "RuneRadar could not load active flips: "
-                            + exception.getMessage()
+            log.warn(
+                    "RuneRadar could not load active flips",
+                    exception
             );
         }
     }
@@ -758,9 +760,9 @@ public class ActiveFlipStore
         }
         catch (Exception exception)
         {
-            System.err.println(
-                    "RuneRadar could not save active flips: "
-                            + exception.getMessage()
+            log.warn(
+                    "RuneRadar could not save active flips",
+                    exception
             );
         }
     }
