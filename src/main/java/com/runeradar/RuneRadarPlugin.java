@@ -1,5 +1,6 @@
 package com.runeradar;
 
+import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -54,6 +55,9 @@ public class RuneRadarPlugin extends Plugin
 	@Inject
 	private Client client;
 
+	@Inject
+	private Gson gson;
+
 	private RuneRadarPanel panel;
 
 	private ActiveFlipStore activeFlipStore;
@@ -72,6 +76,10 @@ public class RuneRadarPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		RuneRadarApiClient.setGson(
+				gson
+		);
+
 		activeFlipStore =
 				new ActiveFlipStore();
 
@@ -363,7 +371,6 @@ public class RuneRadarPlugin extends Plugin
 
 		refreshActiveFlipsPanel();
 	}
-
 
 	private void applyOfferStateToActiveFlip(
 			ActiveFlipStore.ActiveFlip activeFlip,

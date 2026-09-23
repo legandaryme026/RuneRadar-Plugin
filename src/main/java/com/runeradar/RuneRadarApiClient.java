@@ -15,8 +15,34 @@ public class RuneRadarApiClient
     private static final String API_BASE_URL =
             "https://runeradar-production.up.railway.app";
 
-    private final Gson gson =
-            new Gson();
+    private static Gson gson;
+
+    public static void setGson(
+            Gson injectedGson
+    )
+    {
+        if (injectedGson == null)
+        {
+            throw new IllegalArgumentException(
+                    "Injected Gson cannot be null."
+            );
+        }
+
+        gson =
+                injectedGson;
+    }
+
+    private Gson getGson()
+    {
+        if (gson == null)
+        {
+            throw new IllegalStateException(
+                    "RuneRadar Gson has not been initialized."
+            );
+        }
+
+        return gson;
+    }
 
     public ApiResponse getRecommendations(
             long cashStack,
@@ -143,7 +169,7 @@ public class RuneRadarApiClient
         }
 
         ApiResponse response =
-                gson.fromJson(
+                getGson().fromJson(
                         responseText.toString(),
                         ApiResponse.class
                 );
