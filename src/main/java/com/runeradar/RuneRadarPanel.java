@@ -2282,6 +2282,22 @@ public class RuneRadarPanel extends PluginPanel
         return null;
     }
 
+    public RuneRadarApiClient.Recommendation getCurrentRecommendationForOverlay()
+    {
+        if (
+                recommendations.isEmpty()
+                        || currentIndex < 0
+                        || currentIndex >= recommendations.size()
+        )
+        {
+            return null;
+        }
+
+        return recommendations.get(
+                currentIndex
+        );
+    }
+
     // ========================================================
     // SELECTION
     // ========================================================

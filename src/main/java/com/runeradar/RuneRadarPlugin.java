@@ -24,6 +24,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.OverlayManager;
 import okhttp3.OkHttpClient;
 
 @Slf4j
@@ -68,7 +69,12 @@ public class RuneRadarPlugin extends Plugin
 	@Inject
 	private ConfigManager configManager;
 
+	@Inject
+	private OverlayManager overlayManager;
+
 	private RuneRadarPanel panel;
+
+	private RuneRadarGrandExchangeOverlay grandExchangeOverlay;
 
 	private ActiveFlipStore activeFlipStore;
 
@@ -120,6 +126,16 @@ public class RuneRadarPlugin extends Plugin
 						profitTrackerPanel,
 						configManager
 				);
+
+		grandExchangeOverlay =
+				new RuneRadarGrandExchangeOverlay(
+						client,
+						panel
+				);
+
+		overlayManager.add(
+				grandExchangeOverlay
+		);
 
 		recoverCompletedFlips();
 
@@ -176,6 +192,16 @@ public class RuneRadarPlugin extends Plugin
 					navigationButton
 			);
 		}
+
+		if (grandExchangeOverlay != null)
+		{
+			overlayManager.remove(
+					grandExchangeOverlay
+			);
+		}
+
+		grandExchangeOverlay =
+				null;
 
 		panel =
 				null;
