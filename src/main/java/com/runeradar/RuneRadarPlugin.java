@@ -21,11 +21,14 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.util.Filepath;
 import okhttp3.OkHttpClient;
 
 @Slf4j
 @PluginDescriptor(
 		name = "RuneRadar",
+		internalName = "runeradar",
+		legacyDataDirectory = "runeradar",
 		description = "Finds and ranks Grand Exchange flipping opportunities.",
 		tags = {
 				"grand exchange",
@@ -78,7 +81,7 @@ public class RuneRadarPlugin extends Plugin
 			new HashMap<>();
 
 	@Override
-	protected void startUp()
+	protected void startUp() throws Exception
 	{
 		RuneRadarApiClient.setGson(
 				gson
@@ -88,8 +91,13 @@ public class RuneRadarPlugin extends Plugin
 				httpClient
 		);
 
+		Filepath dataDirectory =
+				getPluginDirectory();
+
 		activeFlipStore =
-				new ActiveFlipStore();
+				new ActiveFlipStore(
+						dataDirectory
+				);
 
 		activeFlipsPanel =
 				new ActiveFlipsPanel(
@@ -97,7 +105,9 @@ public class RuneRadarPlugin extends Plugin
 				);
 
 		profitTrackerStore =
-				new ProfitTrackerStore();
+				new ProfitTrackerStore(
+						dataDirectory
+				);
 
 		profitTrackerPanel =
 				new ProfitTrackerPanel(

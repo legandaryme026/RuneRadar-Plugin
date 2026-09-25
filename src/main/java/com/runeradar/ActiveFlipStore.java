@@ -4,21 +4,20 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import net.runelite.client.util.Filepath;
 
 @Slf4j
 public class ActiveFlipStore
 {
+    private static Filepath defaultDataDirectory;
+
     private final Gson gson;
 
     private static final Type ACTIVE_FLIP_LIST_TYPE =
@@ -26,28 +25,49 @@ public class ActiveFlipStore
             {
             }.getType();
 
-    private static final Path DATA_DIRECTORY =
-            Paths.get(
-                    System.getProperty("user.home"),
-                    ".runelite",
-                    "runeradar"
-            );
+    private final Filepath dataDirectory;
 
-    private static final Path DATA_FILE =
-            DATA_DIRECTORY.resolve(
-                    "active_flips.json"
-            );
+    private final Filepath dataFile;
 
-    private static final Path TEMP_FILE =
-            DATA_DIRECTORY.resolve(
-                    "active_flips.tmp"
-            );
+    private final Filepath tempFile;
 
     private final List<ActiveFlip> activeFlips =
             new ArrayList<>();
 
     public ActiveFlipStore()
     {
+        this(
+                getDefaultDataDirectory()
+        );
+    }
+
+    public ActiveFlipStore(
+            Filepath dataDirectory
+    )
+    {
+        if (dataDirectory == null)
+        {
+            throw new IllegalArgumentException(
+                    "dataDirectory must not be null"
+            );
+        }
+
+        defaultDataDirectory =
+                dataDirectory;
+
+        this.dataDirectory =
+                dataDirectory;
+
+        dataFile =
+                dataDirectory.joinSegment(
+                        "active_flips.json"
+                );
+
+        tempFile =
+                dataDirectory.joinSegment(
+                        "active_flips.tmp"
+                );
+
         gson =
                 RuneRadarApiClient
                         .getInjectedGson()
@@ -56,6 +76,18 @@ public class ActiveFlipStore
                         .create();
 
         load();
+    }
+
+    private static Filepath getDefaultDataDirectory()
+    {
+        if (defaultDataDirectory == null)
+        {
+            throw new IllegalStateException(
+                    "RuneRadar storage has not been initialized"
+            );
+        }
+
+        return defaultDataDirectory;
     }
 
     // ========================================================
@@ -607,24 +639,29 @@ public class ActiveFlipStore
 
         try
         {
-            Files.createDirectories(
-                    DATA_DIRECTORY
-            );
+            dataDirectory.createDirectories();
 
             if (
-                    !Files.exists(
-                            DATA_FILE
-                    )
+                    !dataFile.exists()
             )
             {
                 return;
             }
 
+            byte[] data;
+
+            try (
+                    InputStream inputStream =
+                            dataFile.openInputStream()
+            )
+            {
+                data =
+                        inputStream.readAllBytes();
+            }
+
             String json =
                     new String(
-                            Files.readAllBytes(
-                                    DATA_FILE
-                            ),
+                            data,
                             StandardCharsets.UTF_8
                     );
 
@@ -724,39 +761,24 @@ public class ActiveFlipStore
     {
         try
         {
-            Files.createDirectories(
-                    DATA_DIRECTORY
-            );
+            dataDirectory.createDirectories();
 
             String json =
                     gson.toJson(
                             activeFlips
                     );
 
-            Files.write(
-                    TEMP_FILE,
+            tempFile.write(
                     json.getBytes(
                             StandardCharsets.UTF_8
                     )
             );
 
-            try
-            {
-                Files.move(
-                        TEMP_FILE,
-                        DATA_FILE,
-                        StandardCopyOption.REPLACE_EXISTING,
-                        StandardCopyOption.ATOMIC_MOVE
-                );
-            }
-            catch (IOException atomicMoveException)
-            {
-                Files.move(
-                        TEMP_FILE,
-                        DATA_FILE,
-                        StandardCopyOption.REPLACE_EXISTING
-                );
-            }
+            dataFile.deleteIfExists();
+
+            tempFile.moveTo(
+                    dataFile
+            );
         }
         catch (Exception exception)
         {
