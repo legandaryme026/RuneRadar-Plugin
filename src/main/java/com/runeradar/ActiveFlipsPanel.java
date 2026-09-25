@@ -8,6 +8,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -16,6 +17,8 @@ import java.awt.Font;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ActiveFlipsPanel extends JPanel
 {
@@ -68,7 +71,26 @@ public class ActiveFlipsPanel extends JPanel
                     80
             );
 
+    private static final Color RED =
+            new Color(
+                    225,
+                    100,
+                    100
+            );
+
+    private static final long REPRICE_CACHE_MILLIS =
+            60_000L;
+
     private final ActiveFlipStore store;
+
+    private final RuneRadarApiClient apiClient =
+            new RuneRadarApiClient();
+
+    private final Map<String, RepriceSnapshot> repriceSnapshots =
+            new ConcurrentHashMap<>();
+
+    private final Map<String, Boolean> repriceRequestsInFlight =
+            new ConcurrentHashMap<>();
 
     private final NumberFormat numberFormat =
             NumberFormat.getIntegerInstance(
@@ -533,7 +555,7 @@ public class ActiveFlipsPanel extends JPanel
         card.setMaximumSize(
                 new Dimension(
                         Integer.MAX_VALUE,
-                        260
+                        375
                 )
         );
 
@@ -671,6 +693,119 @@ public class ActiveFlipsPanel extends JPanel
                         true
                 );
 
+        JLabel categoryLabel =
+                createLabel(
+                        "Profile: "
+                                + flip.getTrackingCategory(),
+                        MUTED,
+                        false
+                );
+
+        JLabel staleAfterLabel =
+                createLabel(
+                        "Stale after: "
+                                + getStaleThresholdMinutes(
+                                flip
+                        )
+                                + " min",
+                        MUTED,
+                        false
+                );
+
+        JLabel staleLabel =
+                null;
+
+        JLabel repriceLabel =
+                null;
+
+        if (isStaleForReprice(
+                flip
+        ))
+        {
+            long minutesWithoutProgress =
+                    getMinutesWithoutProgress(
+                            flip
+                    );
+
+            staleLabel =
+                    createLabel(
+                            "⚠ Stale: "
+                                    + minutesWithoutProgress
+                                    + " min no progress",
+                            YELLOW,
+                            true
+                    );
+
+            RepriceSnapshot snapshot =
+                    repriceSnapshots.get(
+                            flip.getId()
+                    );
+
+            if (
+                    snapshot == null
+                            || System.currentTimeMillis()
+                            - snapshot.fetchedAt
+                            > REPRICE_CACHE_MILLIS
+            )
+            {
+                requestRepriceAdvice(
+                        flip
+                );
+
+                repriceLabel =
+                        createLabel(
+                                "Reprice: checking market...",
+                                MUTED,
+                                false
+                        );
+            }
+            else if (snapshot.errorMessage != null)
+            {
+                repriceLabel =
+                        createLabel(
+                                "Reprice unavailable",
+                                RED,
+                                false
+                        );
+            }
+            else
+            {
+                boolean buying =
+                        ActiveFlipStore.ActiveFlip.STATUS_BUYING.equals(
+                                flip.getStatus()
+                        );
+
+                long originalPrice =
+                        buying
+                                ? flip.getRecommendedBuyPrice()
+                                : flip.getTargetSellPrice();
+
+                long suggestedPrice =
+                        buying
+                                ? snapshot.buyPrice
+                                : snapshot.sellPrice;
+
+                repriceLabel =
+                        createLabel(
+                                (
+                                        buying
+                                                ? "Buy"
+                                                : "Sell"
+                                )
+                                        + ": "
+                                        + formatGp(
+                                        originalPrice
+                                )
+                                        + " → "
+                                        + formatGp(
+                                        suggestedPrice
+                                ),
+                                TEXT,
+                                true
+                        );
+            }
+        }
+
         JButton removeButton =
                 new JButton(
                         "Remove"
@@ -755,6 +890,52 @@ public class ActiveFlipsPanel extends JPanel
 
         card.add(
                 Box.createVerticalStrut(
+                        5
+                )
+        );
+
+        card.add(
+                categoryLabel
+        );
+
+        card.add(
+                Box.createVerticalStrut(
+                        2
+                )
+        );
+
+        card.add(
+                staleAfterLabel
+        );
+
+        if (staleLabel != null)
+        {
+            card.add(
+                    Box.createVerticalStrut(
+                            6
+                    )
+            );
+
+            card.add(
+                    staleLabel
+            );
+        }
+
+        if (repriceLabel != null)
+        {
+            card.add(
+                    Box.createVerticalStrut(
+                            3
+                    )
+            );
+
+            card.add(
+                    repriceLabel
+            );
+        }
+
+        card.add(
+                Box.createVerticalStrut(
                         8
                 )
         );
@@ -764,6 +945,229 @@ public class ActiveFlipsPanel extends JPanel
         );
 
         return card;
+    }
+
+    // ========================================================
+    // STALE / REPRICE ADVICE
+    // ========================================================
+
+    private long getStaleThresholdMinutes(
+            ActiveFlipStore.ActiveFlip flip
+    )
+    {
+        String category =
+                flip == null
+                        ? "BALANCED"
+                        : flip.getTrackingCategory();
+
+        if ("FAST".equals(
+                category
+        ))
+        {
+            return 15;
+        }
+
+        if ("HIGH_PROFIT".equals(
+                category
+        ))
+        {
+            return 60;
+        }
+
+        if ("SLOW".equals(
+                category
+        ))
+        {
+            return 120;
+        }
+
+        return 35;
+    }
+
+    private long getMinutesWithoutProgress(
+            ActiveFlipStore.ActiveFlip flip
+    )
+    {
+        if (flip == null)
+        {
+            return 0;
+        }
+
+        long lastProgressAt =
+                flip.getLastProgressAt() > 0
+                        ? flip.getLastProgressAt()
+                        : flip.getCreatedAt();
+
+        long elapsedMillis =
+                Math.max(
+                        0,
+                        System.currentTimeMillis()
+                                - lastProgressAt
+                );
+
+        return elapsedMillis
+                / 60_000L;
+    }
+
+    private boolean isStaleForReprice(
+            ActiveFlipStore.ActiveFlip flip
+    )
+    {
+        if (
+                flip == null
+                        || flip.isCompleted()
+        )
+        {
+            return false;
+        }
+
+        boolean activeOrder =
+                ActiveFlipStore.ActiveFlip.STATUS_BUYING.equals(
+                        flip.getStatus()
+                )
+                        || ActiveFlipStore.ActiveFlip.STATUS_SELLING.equals(
+                        flip.getStatus()
+                );
+
+        if (!activeOrder)
+        {
+            return false;
+        }
+
+        return getMinutesWithoutProgress(
+                flip
+        )
+                >= getStaleThresholdMinutes(
+                flip
+        );
+    }
+
+    private void requestRepriceAdvice(
+            ActiveFlipStore.ActiveFlip flip
+    )
+    {
+        if (
+                flip == null
+                        || flip.getId() == null
+                        || repriceRequestsInFlight.putIfAbsent(
+                        flip.getId(),
+                        Boolean.TRUE
+                ) != null
+        )
+        {
+            return;
+        }
+
+        Thread thread =
+                new Thread(
+                        () ->
+                        {
+                            try
+                            {
+                                RuneRadarApiClient.MarketItemResponse response =
+                                        apiClient.getMarketItem(
+                                                flip.getItemId()
+                                        );
+
+                                RuneRadarApiClient.MarketItem marketItem =
+                                        response.getItem();
+
+                                repriceSnapshots.put(
+                                        flip.getId(),
+                                        RepriceSnapshot.success(
+                                                marketItem.getBuyPrice(),
+                                                marketItem.getSellPrice()
+                                        )
+                                );
+                            }
+                            catch (Exception exception)
+                            {
+                                repriceSnapshots.put(
+                                        flip.getId(),
+                                        RepriceSnapshot.failure(
+                                                "market endpoint unavailable"
+                                        )
+                                );
+                            }
+                            finally
+                            {
+                                repriceRequestsInFlight.remove(
+                                        flip.getId()
+                                );
+
+                                SwingUtilities.invokeLater(
+                                        this::refresh
+                                );
+                            }
+                        }
+                );
+
+        thread.setName(
+                "RuneRadar-Reprice-"
+                        + flip.getItemId()
+        );
+
+        thread.setDaemon(
+                true
+        );
+
+        thread.start();
+    }
+
+    private static class RepriceSnapshot
+    {
+        private final long buyPrice;
+
+        private final long sellPrice;
+
+        private final String errorMessage;
+
+        private final long fetchedAt;
+
+        private RepriceSnapshot(
+                long buyPrice,
+                long sellPrice,
+                String errorMessage,
+                long fetchedAt
+        )
+        {
+            this.buyPrice =
+                    buyPrice;
+
+            this.sellPrice =
+                    sellPrice;
+
+            this.errorMessage =
+                    errorMessage;
+
+            this.fetchedAt =
+                    fetchedAt;
+        }
+
+        private static RepriceSnapshot success(
+                long buyPrice,
+                long sellPrice
+        )
+        {
+            return new RepriceSnapshot(
+                    buyPrice,
+                    sellPrice,
+                    null,
+                    System.currentTimeMillis()
+            );
+        }
+
+        private static RepriceSnapshot failure(
+                String errorMessage
+        )
+        {
+            return new RepriceSnapshot(
+                    0,
+                    0,
+                    errorMessage,
+                    System.currentTimeMillis()
+            );
+        }
     }
 
     // ========================================================

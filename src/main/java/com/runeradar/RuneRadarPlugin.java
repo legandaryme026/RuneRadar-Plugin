@@ -460,7 +460,10 @@ public class RuneRadarPlugin extends Plugin
 								Math.toIntExact(
 										recommendation.getRecommendedQty()
 								),
-								recommendation.getNetExpectedProfit()
+								recommendation.getNetExpectedProfit(),
+								panel.getTrackingCategoryForRecommendation(
+										recommendation
+								)
 						);
 
 				log.info(
@@ -701,7 +704,10 @@ public class RuneRadarPlugin extends Plugin
 	{
 		offerSnapshots.clear();
 
-		if (client == null)
+		if (
+				client == null
+						|| activeFlipStore == null
+		)
 		{
 			return;
 		}
@@ -733,13 +739,205 @@ public class RuneRadarPlugin extends Plugin
 				continue;
 			}
 
-			offerSnapshots.put(
-					slot,
+			OfferSnapshot snapshot =
 					OfferSnapshot.from(
 							offer
-					)
+					);
+
+			synchronizeExistingOfferWithActiveFlip(
+					snapshot
+			);
+
+			offerSnapshots.put(
+					slot,
+					snapshot
 			);
 		}
+
+	}
+
+	private void synchronizeExistingOfferWithActiveFlip(
+			OfferSnapshot snapshot
+	)
+	{
+		if (
+				snapshot == null
+						|| activeFlipStore == null
+						|| snapshot.itemId <= 0
+						|| snapshot.quantitySold <= 0
+						|| snapshot.spent <= 0
+		)
+		{
+			return;
+		}
+
+		ActiveFlipStore.ActiveFlip activeFlip =
+				activeFlipStore.findOpenByItemId(
+						snapshot.itemId
+				);
+
+		if (activeFlip == null)
+		{
+			return;
+		}
+
+		if (isBuyState(
+				snapshot.state
+		))
+		{
+			synchronizeExistingBuyOffer(
+					activeFlip,
+					snapshot
+			);
+
+			return;
+		}
+
+		if (isSellState(
+				snapshot.state
+		))
+		{
+			synchronizeExistingSellOffer(
+					activeFlip,
+					snapshot
+			);
+		}
+	}
+
+	private void synchronizeExistingBuyOffer(
+			ActiveFlipStore.ActiveFlip activeFlip,
+			OfferSnapshot snapshot
+	)
+	{
+		int geBoughtQuantity =
+				snapshot.quantitySold;
+
+		int storedBoughtQuantity =
+				activeFlip.getBoughtQuantity();
+
+		if (geBoughtQuantity <= storedBoughtQuantity)
+		{
+			return;
+		}
+
+		int missingQuantity =
+				geBoughtQuantity
+						- storedBoughtQuantity;
+
+		long missingCost =
+				snapshot.spent
+						- activeFlip.getTotalBuyCost();
+
+		if (missingCost <= 0)
+		{
+			missingCost =
+					estimateMissingValue(
+							snapshot.spent,
+							geBoughtQuantity,
+							missingQuantity
+					);
+		}
+
+		if (missingCost <= 0)
+		{
+			return;
+		}
+
+		activeFlipStore.recordBuyTotal(
+				activeFlip.getId(),
+				missingQuantity,
+				missingCost
+		);
+
+		log.info(
+				"RuneRadar synced existing GE buy on login: {} +{} items",
+				activeFlip.getItemName(),
+				missingQuantity
+		);
+	}
+
+	private void synchronizeExistingSellOffer(
+			ActiveFlipStore.ActiveFlip activeFlip,
+			OfferSnapshot snapshot
+	)
+	{
+		int geSoldQuantity =
+				snapshot.quantitySold;
+
+		int storedSoldQuantity =
+				activeFlip.getSoldQuantity();
+
+		if (geSoldQuantity <= storedSoldQuantity)
+		{
+			return;
+		}
+
+		int missingQuantity =
+				geSoldQuantity
+						- storedSoldQuantity;
+
+		long missingGross =
+				snapshot.spent
+						- activeFlip.getTotalSellGross();
+
+		if (missingGross <= 0)
+		{
+			missingGross =
+					estimateMissingValue(
+							snapshot.spent,
+							geSoldQuantity,
+							missingQuantity
+					);
+		}
+
+		if (missingGross <= 0)
+		{
+			return;
+		}
+
+		long estimatedTax =
+				calculateEstimatedTaxForExecution(
+						missingGross,
+						missingQuantity
+				);
+
+		activeFlipStore.recordSaleTotal(
+				activeFlip.getId(),
+				missingQuantity,
+				missingGross,
+				estimatedTax
+		);
+
+		log.info(
+				"RuneRadar synced existing GE sale on login: {} +{} items",
+				activeFlip.getItemName(),
+				missingQuantity
+		);
+	}
+
+	private long estimateMissingValue(
+			long totalValue,
+			int totalQuantity,
+			int missingQuantity
+	)
+	{
+		if (
+				totalValue <= 0
+						|| totalQuantity <= 0
+						|| missingQuantity <= 0
+		)
+		{
+			return 0;
+		}
+
+		return Math.max(
+				1L,
+				Math.round(
+						(double) totalValue
+								/ (double) totalQuantity
+								* (double) missingQuantity
+				)
+		);
 	}
 
 	private boolean isBuyState(

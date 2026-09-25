@@ -135,6 +135,27 @@ public class ActiveFlipStore
             long expectedNetProfit
     )
     {
+        return addRecommendation(
+                itemId,
+                itemName,
+                recommendedBuyPrice,
+                targetSellPrice,
+                recommendedQuantity,
+                expectedNetProfit,
+                "BALANCED"
+        );
+    }
+
+    public synchronized ActiveFlip addRecommendation(
+            int itemId,
+            String itemName,
+            long recommendedBuyPrice,
+            long targetSellPrice,
+            int recommendedQuantity,
+            long expectedNetProfit,
+            String trackingCategory
+    )
+    {
         ActiveFlip existingFlip =
                 findOpenByItemId(
                         itemId
@@ -155,6 +176,7 @@ public class ActiveFlipStore
                         targetSellPrice,
                         recommendedQuantity,
                         expectedNetProfit,
+                        trackingCategory,
                         System.currentTimeMillis()
                 );
 
@@ -339,8 +361,15 @@ public class ActiveFlipStore
             );
         }
 
+        long now =
+                System.currentTimeMillis();
+
+        flip.setLastProgressAt(
+                now
+        );
+
         flip.setUpdatedAt(
-                System.currentTimeMillis()
+                now
         );
 
         save();
@@ -477,8 +506,15 @@ public class ActiveFlipStore
             );
         }
 
+        long now =
+                System.currentTimeMillis();
+
+        flip.setLastProgressAt(
+                now
+        );
+
         flip.setUpdatedAt(
-                System.currentTimeMillis()
+                now
         );
 
         save();
@@ -503,12 +539,43 @@ public class ActiveFlipStore
             return;
         }
 
+        String previousStatus =
+                flip.getStatus();
+
+        boolean statusChanged =
+                previousStatus == null
+                        || !previousStatus.equals(
+                        status
+                );
+
+        if (!statusChanged)
+        {
+            return;
+        }
+
+        long now =
+                System.currentTimeMillis();
+
         flip.setStatus(
                 status
         );
 
+        if (
+                ActiveFlip.STATUS_BUYING.equals(
+                        status
+                )
+                        || ActiveFlip.STATUS_SELLING.equals(
+                        status
+                )
+        )
+        {
+            flip.setLastProgressAt(
+                    now
+            );
+        }
+
         flip.setUpdatedAt(
-                System.currentTimeMillis()
+                now
         );
 
         save();
@@ -714,6 +781,17 @@ public class ActiveFlipStore
                     flip.getCreatedAt()
             );
         }
+
+        if (flip.getLastProgressAt() <= 0)
+        {
+            flip.setLastProgressAt(
+                    flip.getCreatedAt()
+            );
+        }
+
+        flip.setTrackingCategory(
+                flip.getTrackingCategory()
+        );
     }
 
     // ========================================================
@@ -802,6 +880,10 @@ public class ActiveFlipStore
 
         private long expectedNetProfit;
 
+        private String trackingCategory;
+
+        private long lastProgressAt;
+
         private int boughtQuantity;
 
         private int soldQuantity;
@@ -834,6 +916,7 @@ public class ActiveFlipStore
                 long targetSellPrice,
                 int recommendedQuantity,
                 long expectedNetProfit,
+                String trackingCategory,
                 long createdAt
         )
         {
@@ -857,6 +940,13 @@ public class ActiveFlipStore
 
             this.expectedNetProfit =
                     expectedNetProfit;
+
+            setTrackingCategory(
+                    trackingCategory
+            );
+
+            this.lastProgressAt =
+                    createdAt;
 
             this.boughtQuantity =
                     0;
@@ -1086,6 +1176,58 @@ public class ActiveFlipStore
         {
             this.expectedNetProfit =
                     expectedNetProfit;
+        }
+
+        public String getTrackingCategory()
+        {
+            return trackingCategory;
+        }
+
+        public void setTrackingCategory(
+                String trackingCategory
+        )
+        {
+            String cleaned =
+                    trackingCategory == null
+                            ? ""
+                            : trackingCategory
+                            .trim()
+                            .toUpperCase();
+
+            if (
+                    !"FAST".equals(
+                            cleaned
+                    )
+                            && !"BALANCED".equals(
+                            cleaned
+                    )
+                            && !"SLOW".equals(
+                            cleaned
+                    )
+                            && !"HIGH_PROFIT".equals(
+                            cleaned
+                    )
+            )
+            {
+                cleaned =
+                        "BALANCED";
+            }
+
+            this.trackingCategory =
+                    cleaned;
+        }
+
+        public long getLastProgressAt()
+        {
+            return lastProgressAt;
+        }
+
+        public void setLastProgressAt(
+                long lastProgressAt
+        )
+        {
+            this.lastProgressAt =
+                    lastProgressAt;
         }
 
         public int getBoughtQuantity()

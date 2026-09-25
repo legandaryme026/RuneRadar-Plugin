@@ -1839,7 +1839,10 @@ public class RuneRadarPanel extends PluginPanel
                 Math.toIntExact(
                         item.getRecommendedQty()
                 ),
-                item.getNetExpectedProfit()
+                item.getNetExpectedProfit(),
+                getTrackingCategoryForRecommendation(
+                        item
+                )
         );
 
         activeFlipsPanel.refresh();
@@ -1853,6 +1856,51 @@ public class RuneRadarPanel extends PluginPanel
         revalidate();
 
         repaint();
+    }
+
+    public String getTrackingCategoryForRecommendation(
+            RuneRadarApiClient.Recommendation recommendation
+    )
+    {
+        if (
+                "HIGH_PROFIT".equals(
+                        currentFlipType
+                )
+        )
+        {
+            return "HIGH_PROFIT";
+        }
+
+        if (recommendation != null)
+        {
+            String tradingSpeed =
+                    recommendation.getTradingSpeed();
+
+            if (tradingSpeed != null)
+            {
+                String cleaned =
+                        tradingSpeed
+                                .trim()
+                                .toUpperCase();
+
+                if (
+                        "FAST".equals(
+                                cleaned
+                        )
+                                || "BALANCED".equals(
+                                cleaned
+                        )
+                                || "SLOW".equals(
+                                cleaned
+                        )
+                )
+                {
+                    return cleaned;
+                }
+            }
+        }
+
+        return "BALANCED";
     }
 
     private boolean hasActiveFlipForItem(

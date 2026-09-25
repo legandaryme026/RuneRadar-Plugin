@@ -100,6 +100,79 @@ public class RuneRadarApiClient
         );
     }
 
+    public MarketItemResponse getMarketItem(
+            int itemId
+    ) throws Exception
+    {
+        String urlText =
+                API_BASE_URL
+                        + "/market-item?id="
+                        + itemId;
+
+        Request request =
+                new Request.Builder()
+                        .url(
+                                urlText
+                        )
+                        .get()
+                        .header(
+                                "Accept",
+                                "application/json"
+                        )
+                        .build();
+
+        String responseText;
+
+        try (
+                Response response =
+                        getInjectedHttpClient()
+                                .newCall(
+                                        request
+                                )
+                                .execute()
+        )
+        {
+            if (!response.isSuccessful())
+            {
+                throw new RuntimeException(
+                        "RuneRadar API returned HTTP "
+                                + response.code()
+                );
+            }
+
+            ResponseBody responseBody =
+                    response.body();
+
+            if (responseBody == null)
+            {
+                throw new RuntimeException(
+                        "RuneRadar API returned no response body."
+                );
+            }
+
+            responseText =
+                    responseBody.string();
+        }
+
+        MarketItemResponse response =
+                getInjectedGson().fromJson(
+                        responseText,
+                        MarketItemResponse.class
+                );
+
+        if (
+                response == null
+                        || response.item == null
+        )
+        {
+            throw new RuntimeException(
+                    "RuneRadar API returned no market item."
+            );
+        }
+
+        return response;
+    }
+
     private ApiResponse requestRecommendations(
             String endpoint,
             long cashStack,
@@ -195,6 +268,120 @@ public class RuneRadarApiClient
         }
 
         return response;
+    }
+
+    public static class MarketItemResponse
+    {
+        private String status;
+
+        @SerializedName(
+                "updated_at"
+        )
+        private long updatedAt;
+
+        private MarketItem item;
+
+        public String getStatus()
+        {
+            return status;
+        }
+
+        public long getUpdatedAt()
+        {
+            return updatedAt;
+        }
+
+        public MarketItem getItem()
+        {
+            return item;
+        }
+    }
+
+    public static class MarketItem
+    {
+        private int id;
+
+        private String name;
+
+        @SerializedName(
+                "buy_price"
+        )
+        private long buyPrice;
+
+        @SerializedName(
+                "sell_price"
+        )
+        private long sellPrice;
+
+        @SerializedName(
+                "avg_buy_price"
+        )
+        private long averageBuyPrice;
+
+        @SerializedName(
+                "avg_sell_price"
+        )
+        private long averageSellPrice;
+
+        @SerializedName(
+                "high_volume"
+        )
+        private long highVolume;
+
+        @SerializedName(
+                "low_volume"
+        )
+        private long lowVolume;
+
+        @SerializedName(
+                "buy_limit"
+        )
+        private long buyLimit;
+
+        public int getId()
+        {
+            return id;
+        }
+
+        public String getName()
+        {
+            return name;
+        }
+
+        public long getBuyPrice()
+        {
+            return buyPrice;
+        }
+
+        public long getSellPrice()
+        {
+            return sellPrice;
+        }
+
+        public long getAverageBuyPrice()
+        {
+            return averageBuyPrice;
+        }
+
+        public long getAverageSellPrice()
+        {
+            return averageSellPrice;
+        }
+
+        public long getHighVolume()
+        {
+            return highVolume;
+        }
+
+        public long getLowVolume()
+        {
+            return lowVolume;
+        }
+
+        public long getBuyLimit()
+        {
+            return buyLimit;
+        }
     }
 
     public static class ApiResponse
