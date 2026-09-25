@@ -18,6 +18,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.PluginPanel;
 
 public class RuneRadarPanel extends PluginPanel
@@ -51,6 +52,8 @@ public class RuneRadarPanel extends PluginPanel
             2_147_483_647L;
 
     private final RuneRadarConfig config;
+
+    private final ConfigManager configManager;
 
     private final RuneRadarApiClient apiClient =
             new RuneRadarApiClient();
@@ -279,6 +282,7 @@ public class RuneRadarPanel extends PluginPanel
                 config,
                 new ActiveFlipStore(),
                 null,
+                null,
                 null
         );
     }
@@ -293,6 +297,7 @@ public class RuneRadarPanel extends PluginPanel
                 config,
                 activeFlipStore,
                 activeFlipsPanel,
+                null,
                 null
         );
     }
@@ -304,7 +309,26 @@ public class RuneRadarPanel extends PluginPanel
             ProfitTrackerPanel profitTrackerPanel
     )
     {
+        this(
+                config,
+                activeFlipStore,
+                activeFlipsPanel,
+                profitTrackerPanel,
+                null
+        );
+    }
+
+    public RuneRadarPanel(
+            RuneRadarConfig config,
+            ActiveFlipStore activeFlipStore,
+            ActiveFlipsPanel activeFlipsPanel,
+            ProfitTrackerPanel profitTrackerPanel,
+            ConfigManager configManager
+    )
+    {
         this.config = config;
+
+        this.configManager = configManager;
 
         this.activeFlipStore =
                 activeFlipStore != null
@@ -325,7 +349,7 @@ public class RuneRadarPanel extends PluginPanel
 
         currentCashStack =
                 Math.max(
-                        1L,
+                        0L,
                         config.cashStack()
                 );
 
@@ -687,6 +711,15 @@ public class RuneRadarPanel extends PluginPanel
 
             updateCashLabel();
 
+            if (configManager != null)
+            {
+                configManager.setConfiguration(
+                        "runeradar",
+                        "cashStack",
+                        currentCashStack
+                );
+            }
+
             currentIndex = 0;
 
             loadRecommendations(
@@ -785,10 +818,10 @@ public class RuneRadarPanel extends PluginPanel
                             )
                             .longValueExact();
 
-            if (cash < 1)
+            if (cash < 0)
             {
                 throw new IllegalArgumentException(
-                        "Cash stack must be above 0"
+                        "Cash stack cannot be below 0"
                 );
             }
 
@@ -853,6 +886,15 @@ public class RuneRadarPanel extends PluginPanel
 
     private void updateCashLabel()
     {
+        if (currentCashStack == 0)
+        {
+            cashLabel.setText(
+                    "All cash stacks • no budget filter"
+            );
+
+            return;
+        }
+
         cashLabel.setText(
                 numberFormat.format(
                         currentCashStack
@@ -1929,7 +1971,9 @@ public class RuneRadarPanel extends PluginPanel
         }
 
         final long cashStack =
-                currentCashStack;
+                currentCashStack == 0
+                        ? MAX_CASH_STACK
+                        : currentCashStack;
 
         final String requestedFlipType =
                 currentFlipType;

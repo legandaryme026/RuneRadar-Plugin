@@ -14,6 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GrandExchangeOffer;
 import net.runelite.api.GrandExchangeOfferState;
+import net.runelite.api.GameState;
+import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.GrandExchangeOfferChanged;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
@@ -62,6 +65,9 @@ public class RuneRadarPlugin extends Plugin
 	@Inject
 	private OkHttpClient httpClient;
 
+	@Inject
+	private ConfigManager configManager;
+
 	private RuneRadarPanel panel;
 
 	private ActiveFlipStore activeFlipStore;
@@ -76,6 +82,8 @@ public class RuneRadarPlugin extends Plugin
 
 	private final Map<Integer, OfferSnapshot> offerSnapshots =
 			new HashMap<>();
+
+	private boolean awaitingLoginBaseline;
 
 	@Override
 	protected void startUp()
@@ -109,12 +117,20 @@ public class RuneRadarPlugin extends Plugin
 						config,
 						activeFlipStore,
 						activeFlipsPanel,
-						profitTrackerPanel
+						profitTrackerPanel,
+						configManager
 				);
 
 		recoverCompletedFlips();
 
-		primeGrandExchangeSnapshots();
+		awaitingLoginBaseline =
+				client == null
+						|| client.getGameState() != GameState.LOGGED_IN;
+
+		if (!awaitingLoginBaseline)
+		{
+			primeGrandExchangeSnapshots();
+		}
 
 		BufferedImage icon =
 				createTemporaryIcon();
@@ -149,6 +165,7 @@ public class RuneRadarPlugin extends Plugin
 	protected void shutDown()
 	{
 		offerSnapshots.clear();
+		awaitingLoginBaseline = false;
 
 		if (
 				navigationButton
@@ -188,6 +205,72 @@ public class RuneRadarPlugin extends Plugin
 	// ========================================================
 
 	@Subscribe
+	public void onGameStateChanged(
+			GameStateChanged event
+	)
+	{
+		if (event == null)
+		{
+			return;
+		}
+
+		GameState gameState =
+				event.getGameState();
+
+		if (gameState == GameState.LOGGED_IN)
+		{
+			offerSnapshots.clear();
+			awaitingLoginBaseline = true;
+
+			log.debug(
+					"RuneRadar waiting for Grand Exchange login baseline"
+			);
+
+			return;
+		}
+
+		if (
+				gameState == GameState.LOGIN_SCREEN
+						|| gameState == GameState.HOPPING
+						|| gameState == GameState.CONNECTION_LOST
+		)
+		{
+			offerSnapshots.clear();
+			awaitingLoginBaseline = true;
+		}
+	}
+
+	@Subscribe
+	public void onGameTick(
+			GameTick event
+	)
+	{
+		if (
+				client == null
+						|| client.getGameState() != GameState.LOGGED_IN
+						|| activeFlipStore == null
+		)
+		{
+			return;
+		}
+
+		if (awaitingLoginBaseline)
+		{
+			primeGrandExchangeSnapshots();
+			awaitingLoginBaseline = false;
+
+			log.debug(
+					"RuneRadar Grand Exchange login baseline initialized with {} slots",
+					offerSnapshots.size()
+			);
+
+			return;
+		}
+
+		pollGrandExchangeOffers();
+	}
+
+	@Subscribe
 	public void onGrandExchangeOfferChanged(
 			GrandExchangeOfferChanged event
 	)
@@ -208,9 +291,48 @@ public class RuneRadarPlugin extends Plugin
 			return;
 		}
 
-		int slot =
-				event.getSlot();
+		processGrandExchangeOffer(
+				event.getSlot(),
+				offer
+		);
+	}
 
+	private void pollGrandExchangeOffers()
+	{
+		GrandExchangeOffer[] offers =
+				client.getGrandExchangeOffers();
+
+		if (offers == null)
+		{
+			return;
+		}
+
+		for (
+				int slot = 0;
+				slot < offers.length;
+				slot++
+		)
+		{
+			GrandExchangeOffer offer =
+					offers[slot];
+
+			if (offer == null)
+			{
+				continue;
+			}
+
+			processGrandExchangeOffer(
+					slot,
+					offer
+			);
+		}
+	}
+
+	private void processGrandExchangeOffer(
+			int slot,
+			GrandExchangeOffer offer
+	)
+	{
 		GrandExchangeOfferState state =
 				offer.getState();
 
@@ -230,6 +352,16 @@ public class RuneRadarPlugin extends Plugin
 				OfferSnapshot.from(
 						offer
 				);
+
+		if (awaitingLoginBaseline)
+		{
+			offerSnapshots.put(
+					slot,
+					current
+			);
+
+			return;
+		}
 
 		OfferSnapshot previous =
 				offerSnapshots.get(
@@ -277,11 +409,12 @@ public class RuneRadarPlugin extends Plugin
 
 		if (
 				activeFlip == null
-						&& isBuyState(
-						current.state
+						&& newOffer
+						&& (
+						current.state == GrandExchangeOfferState.BUYING
+								|| current.state == GrandExchangeOfferState.BOUGHT
 				)
-						&& quantityDelta > 0
-						&& spentDelta > 0
+						&& current.totalQuantity > 0
 						&& panel != null
 		)
 		{
@@ -391,6 +524,18 @@ public class RuneRadarPlugin extends Plugin
 						|| activeFlip.isCompleted()
 		)
 		{
+			return;
+		}
+
+		if (
+				state == GrandExchangeOfferState.BUYING
+		)
+		{
+			activeFlipStore.setStatus(
+					activeFlip.getId(),
+					ActiveFlipStore.ActiveFlip.STATUS_BUYING
+			);
+
 			return;
 		}
 

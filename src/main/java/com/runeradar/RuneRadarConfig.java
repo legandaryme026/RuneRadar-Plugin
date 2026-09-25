@@ -11,11 +11,11 @@ public interface RuneRadarConfig extends Config
     @ConfigItem(
             keyName = "cashStack",
             name = "Cash stack",
-            description = "How much GP RuneRadar may use when finding flips.",
+            description = "How much GP RuneRadar may use when finding flips. Set to 0 to show all opportunities.",
             position = 0
     )
     @Range(
-            min = 1,
+            min = 0,
             max = 2147483647
     )
     default int cashStack()
