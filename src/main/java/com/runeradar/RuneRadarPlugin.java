@@ -8,6 +8,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
@@ -30,29 +31,38 @@ import okhttp3.OkHttpClient;
 
 @Slf4j
 @PluginDescriptor(
-                name = "RuneRadar",
-                internalName = "runeradar",
-                legacyDataDirectory = "runeradar",
-                description = "Finds and ranks Grand Exchange flipping opportunities.",
-                tags = {
-                                "grand exchange",
-                                "ge",
-                                "flipping",
-                                "prices",
-                                "trading",
-                                "market"
-                }
+        name = "RuneRadar",
+        internalName = "runeradar",
+        legacyDataDirectory = "runeradar",
+        description = "Finds and ranks Grand Exchange flipping opportunities.",
+        tags = {
+                "grand exchange",
+                "ge",
+                "flipping",
+                "prices",
+                "trading",
+                "market"
+        }
 )
 public class RuneRadarPlugin extends Plugin
 {
         private static final double GE_TAX_RATE =
-                        0.02;
+                0.02;
 
         private static final long GE_TAX_CAP_PER_ITEM =
-                        5_000_000L;
+                5_000_000L;
 
         private static final long GE_TAX_MIN_PRICE =
-                        50L;
+                50L;
+
+        private static final String CONFIG_GROUP =
+                "runeradar";
+
+        private static final String INSTALL_ID_KEY =
+                "installId";
+
+        private static final String PLUGIN_BUILD_VERSION =
+                "1.1.0";
 
         @Inject
         private ClientToolbar clientToolbar;
@@ -90,7 +100,7 @@ public class RuneRadarPlugin extends Plugin
         private NavigationButton navigationButton;
 
         private final Map<Integer, OfferSnapshot> offerSnapshots =
-                        new HashMap<>();
+                new HashMap<>();
 
         private boolean awaitingLoginBaseline;
 
@@ -98,60 +108,68 @@ public class RuneRadarPlugin extends Plugin
         protected void startUp() throws Exception
         {
                 RuneRadarApiClient.setGson(
-                                gson
+                        gson
                 );
 
                 RuneRadarApiClient.setHttpClient(
-                                httpClient
+                        httpClient
+                );
+
+                String installId =
+                        getOrCreateInstallId();
+
+                RuneRadarApiClient.setAnalyticsIdentity(
+                        installId,
+                        PLUGIN_BUILD_VERSION
                 );
 
                 Filepath dataDirectory =
-                                getPluginDirectory();
+                        getPluginDirectory();
 
                 activeFlipStore =
-                                new ActiveFlipStore(
-                                                dataDirectory
-                                );
+                        new ActiveFlipStore(
+                                dataDirectory
+                        );
 
                 activeFlipsPanel =
-                                new ActiveFlipsPanel(
-                                                activeFlipStore
-                                );
+                        new ActiveFlipsPanel(
+                                activeFlipStore
+                        );
 
                 profitTrackerStore =
-                                new ProfitTrackerStore(
-                                                dataDirectory
-                                );
+                        new ProfitTrackerStore(
+                                dataDirectory
+                        );
 
                 profitTrackerPanel =
-                                new ProfitTrackerPanel(
-                                                profitTrackerStore
-                                );
+                        new ProfitTrackerPanel(
+                                profitTrackerStore
+                        );
 
                 panel =
-                                new RuneRadarPanel(
-                                                config,
-                                                activeFlipStore,
-                                                activeFlipsPanel,
-                                                profitTrackerPanel,
-                                                configManager
-                                );
+                        new RuneRadarPanel(
+                                config,
+                                activeFlipStore,
+                                activeFlipsPanel,
+                                profitTrackerPanel,
+                                configManager
+                        );
 
                 grandExchangeOverlay =
-                                new RuneRadarGrandExchangeOverlay(
-                                                client,
-                                                panel
-                                );
+                        new RuneRadarGrandExchangeOverlay(
+                                client,
+                                panel
+                        );
 
                 overlayManager.add(
-                                grandExchangeOverlay
+                        grandExchangeOverlay
                 );
 
                 recoverCompletedFlips();
 
                 awaitingLoginBaseline =
-                                client == null
-                                                || client.getGameState() != GameState.LOGGED_IN;
+                        client == null
+                                || client.getGameState() != GameState.LOGGED_IN;
 
                 if (!awaitingLoginBaseline)
                 {
@@ -159,31 +177,31 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 BufferedImage icon =
-                                createTemporaryIcon();
+                        createTemporaryIcon();
 
                 navigationButton =
-                                NavigationButton.builder()
-                                                .tooltip(
-                                                                "RuneRadar"
-                                                )
-                                                .icon(
-                                                                icon
-                                                )
-                                                .priority(
-                                                                5
-                                                )
-                                                .panel(
-                                                                panel
-                                                )
-                                                .build();
+                        NavigationButton.builder()
+                                .tooltip(
+                                        "RuneRadar"
+                                )
+                                .icon(
+                                        icon
+                                )
+                                .priority(
+                                        5
+                                )
+                                .panel(
+                                        panel
+                                )
+                                .build();
 
                 clientToolbar.addNavigation(
-                                navigationButton
+                        navigationButton
                 );
 
                 log.info(
-                                "RuneRadar started with {} active flips",
-                                activeFlipStore.size()
+                        "RuneRadar started with {} active flips",
+                        activeFlipStore.size()
                 );
         }
 
@@ -194,45 +212,45 @@ public class RuneRadarPlugin extends Plugin
                 awaitingLoginBaseline = false;
 
                 if (
-                                navigationButton
-                                                != null
+                        navigationButton
+                                != null
                 )
                 {
                         clientToolbar.removeNavigation(
-                                        navigationButton
+                                navigationButton
                         );
                 }
 
                 if (grandExchangeOverlay != null)
                 {
                         overlayManager.remove(
-                                        grandExchangeOverlay
+                                grandExchangeOverlay
                         );
                 }
 
                 grandExchangeOverlay =
-                                null;
+                        null;
 
                 panel =
-                                null;
+                        null;
 
                 activeFlipsPanel =
-                                null;
+                        null;
 
                 activeFlipStore =
-                                null;
+                        null;
 
                 profitTrackerPanel =
-                                null;
+                        null;
 
                 profitTrackerStore =
-                                null;
+                        null;
 
                 navigationButton =
-                                null;
+                        null;
 
                 log.info(
-                                "RuneRadar stopped"
+                        "RuneRadar stopped"
                 );
         }
 
@@ -242,7 +260,7 @@ public class RuneRadarPlugin extends Plugin
 
         @Subscribe
         public void onGameStateChanged(
-                        GameStateChanged event
+                GameStateChanged event
         )
         {
                 if (event == null)
@@ -251,7 +269,7 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 GameState gameState =
-                                event.getGameState();
+                        event.getGameState();
 
                 if (gameState == GameState.LOGGED_IN)
                 {
@@ -259,16 +277,16 @@ public class RuneRadarPlugin extends Plugin
                         awaitingLoginBaseline = true;
 
                         log.debug(
-                                        "RuneRadar waiting for Grand Exchange login baseline"
+                                "RuneRadar waiting for Grand Exchange login baseline"
                         );
 
                         return;
                 }
 
                 if (
-                                gameState == GameState.LOGIN_SCREEN
-                                                || gameState == GameState.HOPPING
-                                                || gameState == GameState.CONNECTION_LOST
+                        gameState == GameState.LOGIN_SCREEN
+                                || gameState == GameState.HOPPING
+                                || gameState == GameState.CONNECTION_LOST
                 )
                 {
                         offerSnapshots.clear();
@@ -278,13 +296,13 @@ public class RuneRadarPlugin extends Plugin
 
         @Subscribe
         public void onGameTick(
-                        GameTick event
+                GameTick event
         )
         {
                 if (
-                                client == null
-                                                || client.getGameState() != GameState.LOGGED_IN
-                                                || activeFlipStore == null
+                        client == null
+                                || client.getGameState() != GameState.LOGGED_IN
+                                || activeFlipStore == null
                 )
                 {
                         return;
@@ -296,8 +314,8 @@ public class RuneRadarPlugin extends Plugin
                         awaitingLoginBaseline = false;
 
                         log.debug(
-                                        "RuneRadar Grand Exchange login baseline initialized with {} slots",
-                                        offerSnapshots.size()
+                                "RuneRadar Grand Exchange login baseline initialized with {} slots",
+                                offerSnapshots.size()
                         );
 
                         return;
@@ -308,19 +326,19 @@ public class RuneRadarPlugin extends Plugin
 
         @Subscribe
         public void onGrandExchangeOfferChanged(
-                        GrandExchangeOfferChanged event
+                GrandExchangeOfferChanged event
         )
         {
                 if (
-                                event == null
-                                                || activeFlipStore == null
+                        event == null
+                                || activeFlipStore == null
                 )
                 {
                         return;
                 }
 
                 GrandExchangeOffer offer =
-                                event.getOffer();
+                        event.getOffer();
 
                 if (offer == null)
                 {
@@ -328,15 +346,15 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 processGrandExchangeOffer(
-                                event.getSlot(),
-                                offer
+                        event.getSlot(),
+                        offer
                 );
         }
 
         private void pollGrandExchangeOffers()
         {
                 GrandExchangeOffer[] offers =
-                                client.getGrandExchangeOffers();
+                        client.getGrandExchangeOffers();
 
                 if (offers == null)
                 {
@@ -344,13 +362,13 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 for (
-                                int slot = 0;
-                                slot < offers.length;
-                                slot++
+                        int slot = 0;
+                        slot < offers.length;
+                        slot++
                 )
                 {
                         GrandExchangeOffer offer =
-                                        offers[slot];
+                                offers[slot];
 
                         if (offer == null)
                         {
@@ -358,57 +376,57 @@ public class RuneRadarPlugin extends Plugin
                         }
 
                         processGrandExchangeOffer(
-                                        slot,
-                                        offer
+                                slot,
+                                offer
                         );
                 }
         }
 
         private void processGrandExchangeOffer(
-                        int slot,
-                        GrandExchangeOffer offer
+                int slot,
+                GrandExchangeOffer offer
         )
         {
                 GrandExchangeOfferState state =
-                                offer.getState();
+                        offer.getState();
 
                 if (
-                                state == null
-                                                || state == GrandExchangeOfferState.EMPTY
+                        state == null
+                                || state == GrandExchangeOfferState.EMPTY
                 )
                 {
                         offerSnapshots.remove(
-                                        slot
+                                slot
                         );
 
                         return;
                 }
 
                 OfferSnapshot current =
-                                OfferSnapshot.from(
-                                                offer
-                                );
+                        OfferSnapshot.from(
+                                offer
+                        );
 
                 if (awaitingLoginBaseline)
                 {
                         offerSnapshots.put(
-                                        slot,
-                                        current
+                                slot,
+                                current
                         );
 
                         return;
                 }
 
                 OfferSnapshot previous =
-                                offerSnapshots.get(
-                                                slot
-                                );
+                        offerSnapshots.get(
+                                slot
+                        );
 
                 boolean newOffer =
-                                previous == null
-                                                || !previous.matchesSameOffer(
-                                                current
-                                );
+                        previous == null
+                                || !previous.matchesSameOffer(
+                                current
+                        );
 
                 int quantityDelta;
 
@@ -417,126 +435,126 @@ public class RuneRadarPlugin extends Plugin
                 if (newOffer)
                 {
                         quantityDelta =
-                                        current.quantitySold;
+                                current.quantitySold;
 
                         spentDelta =
-                                        current.spent;
+                                current.spent;
                 }
                 else
                 {
                         quantityDelta =
-                                        current.quantitySold
-                                                        - previous.quantitySold;
+                                current.quantitySold
+                                        - previous.quantitySold;
 
                         spentDelta =
-                                        current.spent
-                                                        - previous.spent;
+                                current.spent
+                                        - previous.spent;
                 }
 
                 offerSnapshots.put(
-                                slot,
-                                current
+                        slot,
+                        current
                 );
 
                 ActiveFlipStore.ActiveFlip activeFlip =
-                                activeFlipStore.findOpenByItemId(
-                                                current.itemId
-                                );
+                        activeFlipStore.findOpenByItemId(
+                                current.itemId
+                        );
 
                 if (
-                                activeFlip == null
-                                                && newOffer
-                                                && (
-                                                current.state == GrandExchangeOfferState.BUYING
-                                                                || current.state == GrandExchangeOfferState.BOUGHT
-                                )
-                                                && current.totalQuantity > 0
-                                                && panel != null
+                        activeFlip == null
+                                && newOffer
+                                && (
+                                current.state == GrandExchangeOfferState.BUYING
+                                        || current.state == GrandExchangeOfferState.BOUGHT
+                        )
+                                && current.totalQuantity > 0
+                                && panel != null
                 )
                 {
                         RuneRadarApiClient.Recommendation recommendation =
-                                        panel.findLoadedRecommendationByItemId(
-                                                        current.itemId
-                                        );
+                                panel.findLoadedRecommendationByItemId(
+                                        current.itemId
+                                );
 
                         if (recommendation != null)
                         {
                                 activeFlip =
-                                                activeFlipStore.addRecommendation(
-                                                                recommendation.getId(),
-                                                                recommendation.getName(),
-                                                                recommendation.getBuy(),
-                                                                recommendation.getSell(),
-                                                                Math.toIntExact(
-                                                                                recommendation.getRecommendedQty()
-                                                                ),
-                                                                recommendation.getNetExpectedProfit(),
-                                                                panel.getTrackingCategoryForRecommendation(
-                                                                                recommendation
-                                                                )
-                                                );
+                                        activeFlipStore.addRecommendation(
+                                                recommendation.getId(),
+                                                recommendation.getName(),
+                                                recommendation.getBuy(),
+                                                recommendation.getSell(),
+                                                Math.toIntExact(
+                                                        recommendation.getRecommendedQty()
+                                                ),
+                                                recommendation.getNetExpectedProfit(),
+                                                panel.getTrackingCategoryForRecommendation(
+                                                        recommendation
+                                                )
+                                        );
 
                                 log.info(
-                                                "RuneRadar automatically started Active Flip for recommended item {}",
-                                                recommendation.getName()
+                                        "RuneRadar automatically started Active Flip for recommended item {}",
+                                        recommendation.getName()
                                 );
                         }
                 }
 
                 if (
-                                activeFlip != null
-                                                && quantityDelta > 0
-                                                && spentDelta > 0
+                        activeFlip != null
+                                && quantityDelta > 0
+                                && spentDelta > 0
                 )
                 {
                         if (
-                                        isBuyState(
-                                                        current.state
-                                        )
+                                isBuyState(
+                                        current.state
+                                )
                         )
                         {
                                 activeFlipStore.recordBuyTotal(
-                                                activeFlip.getId(),
-                                                quantityDelta,
-                                                spentDelta
+                                        activeFlip.getId(),
+                                        quantityDelta,
+                                        spentDelta
                                 );
 
                                 log.info(
-                                                "RuneRadar detected GE buy: {} x{} for {} gp",
-                                                activeFlip.getItemName(),
-                                                quantityDelta,
-                                                spentDelta
+                                        "RuneRadar detected GE buy: {} x{} for {} gp",
+                                        activeFlip.getItemName(),
+                                        quantityDelta,
+                                        spentDelta
                                 );
                         }
                         else if (
-                                        isSellState(
-                                                        current.state
-                                        )
+                                isSellState(
+                                        current.state
+                                )
                         )
                         {
                                 long estimatedTax =
-                                                calculateEstimatedTaxForExecution(
-                                                                spentDelta,
-                                                                quantityDelta
-                                                );
+                                        calculateEstimatedTaxForExecution(
+                                                spentDelta,
+                                                quantityDelta
+                                        );
 
                                 activeFlipStore.recordSaleTotal(
-                                                activeFlip.getId(),
-                                                quantityDelta,
-                                                spentDelta,
-                                                estimatedTax
+                                        activeFlip.getId(),
+                                        quantityDelta,
+                                        spentDelta,
+                                        estimatedTax
                                 );
 
                                 log.info(
-                                                "RuneRadar detected GE sale: {} x{} for {} gp, estimated tax {} gp",
-                                                activeFlip.getItemName(),
-                                                quantityDelta,
-                                                spentDelta,
-                                                estimatedTax
+                                        "RuneRadar detected GE sale: {} x{} for {} gp, estimated tax {} gp",
+                                        activeFlip.getItemName(),
+                                        quantityDelta,
+                                        spentDelta,
+                                        estimatedTax
                                 );
 
                                 recordCompletedFlipIfNeeded(
-                                                activeFlip
+                                        activeFlip
                                 );
                         }
                 }
@@ -544,8 +562,8 @@ public class RuneRadarPlugin extends Plugin
                 if (activeFlip != null)
                 {
                         applyOfferStateToActiveFlip(
-                                        activeFlip,
-                                        current.state
+                                activeFlip,
+                                current.state
                         );
                 }
 
@@ -553,40 +571,40 @@ public class RuneRadarPlugin extends Plugin
         }
 
         private void applyOfferStateToActiveFlip(
-                        ActiveFlipStore.ActiveFlip activeFlip,
-                        GrandExchangeOfferState state
+                ActiveFlipStore.ActiveFlip activeFlip,
+                GrandExchangeOfferState state
         )
         {
                 if (
-                                activeFlip == null
-                                                || state == null
-                                                || activeFlip.isCompleted()
+                        activeFlip == null
+                                || state == null
+                                || activeFlip.isCompleted()
                 )
                 {
                         return;
                 }
 
                 if (
-                                state == GrandExchangeOfferState.BUYING
+                        state == GrandExchangeOfferState.BUYING
                 )
                 {
                         activeFlipStore.setStatus(
-                                        activeFlip.getId(),
-                                        ActiveFlipStore.ActiveFlip.STATUS_BUYING
+                                activeFlip.getId(),
+                                ActiveFlipStore.ActiveFlip.STATUS_BUYING
                         );
 
                         return;
                 }
 
                 if (
-                                state == GrandExchangeOfferState.BOUGHT
+                        state == GrandExchangeOfferState.BOUGHT
                 )
                 {
                         if (activeFlip.getOpenQuantity() > 0)
                         {
                                 activeFlipStore.setStatus(
-                                                activeFlip.getId(),
-                                                ActiveFlipStore.ActiveFlip.STATUS_READY_TO_SELL
+                                        activeFlip.getId(),
+                                        ActiveFlipStore.ActiveFlip.STATUS_READY_TO_SELL
                                 );
                         }
 
@@ -594,21 +612,21 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 if (
-                                state == GrandExchangeOfferState.CANCELLED_BUY
+                        state == GrandExchangeOfferState.CANCELLED_BUY
                 )
                 {
                         if (activeFlip.getOpenQuantity() > 0)
                         {
                                 activeFlipStore.setStatus(
-                                                activeFlip.getId(),
-                                                ActiveFlipStore.ActiveFlip.STATUS_READY_TO_SELL
+                                        activeFlip.getId(),
+                                        ActiveFlipStore.ActiveFlip.STATUS_READY_TO_SELL
                                 );
                         }
                         else
                         {
                                 activeFlipStore.setStatus(
-                                                activeFlip.getId(),
-                                                ActiveFlipStore.ActiveFlip.STATUS_PLANNED
+                                        activeFlip.getId(),
+                                        ActiveFlipStore.ActiveFlip.STATUS_PLANNED
                                 );
                         }
 
@@ -616,39 +634,39 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 if (
-                                state == GrandExchangeOfferState.SOLD
-                                                || state == GrandExchangeOfferState.CANCELLED_SELL
+                        state == GrandExchangeOfferState.SOLD
+                                || state == GrandExchangeOfferState.CANCELLED_SELL
                 )
                 {
                         if (activeFlip.getOpenQuantity() > 0)
                         {
                                 activeFlipStore.setStatus(
-                                                activeFlip.getId(),
-                                                ActiveFlipStore.ActiveFlip.STATUS_READY_TO_SELL
+                                        activeFlip.getId(),
+                                        ActiveFlipStore.ActiveFlip.STATUS_READY_TO_SELL
                                 );
                         }
                 }
         }
 
         private void recordCompletedFlipIfNeeded(
-                        ActiveFlipStore.ActiveFlip activeFlip
+                ActiveFlipStore.ActiveFlip activeFlip
         )
         {
                 if (
-                                activeFlip == null
-                                                || !activeFlip.isCompleted()
-                                                || activeFlip.isProfitTrackerRecorded()
-                                                || profitTrackerStore == null
+                        activeFlip == null
+                                || !activeFlip.isCompleted()
+                                || activeFlip.isProfitTrackerRecorded()
+                                || profitTrackerStore == null
                 )
                 {
                         return;
                 }
 
                 long completedQuantity =
-                                Math.min(
-                                                activeFlip.getBoughtQuantity(),
-                                                activeFlip.getSoldQuantity()
-                                );
+                        Math.min(
+                                activeFlip.getBoughtQuantity(),
+                                activeFlip.getSoldQuantity()
+                        );
 
                 if (completedQuantity <= 0)
                 {
@@ -658,33 +676,33 @@ public class RuneRadarPlugin extends Plugin
                 try
                 {
                         profitTrackerStore.addCompletedFlipExact(
-                                        activeFlip.getItemName(),
-                                        activeFlip.getAverageBuyPrice(),
-                                        activeFlip.getAverageSellPrice(),
-                                        completedQuantity,
-                                        activeFlip.getTotalTax(),
-                                        activeFlip.getRealizedNetProfit()
+                                activeFlip.getItemName(),
+                                activeFlip.getAverageBuyPrice(),
+                                activeFlip.getAverageSellPrice(),
+                                completedQuantity,
+                                activeFlip.getTotalTax(),
+                                activeFlip.getRealizedNetProfit()
                         );
 
                         activeFlipStore.markProfitTrackerRecorded(
-                                        activeFlip.getId()
+                                activeFlip.getId()
                         );
 
                         refreshProfitTrackerPanel();
 
                         log.info(
-                                        "RuneRadar completed flip: {} x{} net {} gp",
-                                        activeFlip.getItemName(),
-                                        completedQuantity,
-                                        activeFlip.getRealizedNetProfit()
+                                "RuneRadar completed flip: {} x{} net {} gp",
+                                activeFlip.getItemName(),
+                                completedQuantity,
+                                activeFlip.getRealizedNetProfit()
                         );
                 }
                 catch (Exception exception)
                 {
                         log.error(
-                                        "RuneRadar could not write completed flip {} to Profit Tracker",
-                                        activeFlip.getItemName(),
-                                        exception
+                                "RuneRadar could not write completed flip {} to Profit Tracker",
+                                activeFlip.getItemName(),
+                                exception
                         );
                 }
         }
@@ -692,20 +710,20 @@ public class RuneRadarPlugin extends Plugin
         private void recoverCompletedFlips()
         {
                 if (
-                                activeFlipStore == null
-                                                || profitTrackerStore == null
+                        activeFlipStore == null
+                                || profitTrackerStore == null
                 )
                 {
                         return;
                 }
 
                 for (
-                                ActiveFlipStore.ActiveFlip activeFlip
-                                : activeFlipStore.getCompletedUnrecorded()
+                        ActiveFlipStore.ActiveFlip activeFlip
+                        : activeFlipStore.getCompletedUnrecorded()
                 )
                 {
                         recordCompletedFlipIfNeeded(
-                                        activeFlip
+                                activeFlip
                         );
                 }
         }
@@ -715,15 +733,15 @@ public class RuneRadarPlugin extends Plugin
                 offerSnapshots.clear();
 
                 if (
-                                client == null
-                                                || activeFlipStore == null
+                        client == null
+                                || activeFlipStore == null
                 )
                 {
                         return;
                 }
 
                 GrandExchangeOffer[] offers =
-                                client.getGrandExchangeOffers();
+                        client.getGrandExchangeOffers();
 
                 if (offers == null)
                 {
@@ -731,60 +749,59 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 for (
-                                int slot = 0;
-                                slot < offers.length;
-                                slot++
+                        int slot = 0;
+                        slot < offers.length;
+                        slot++
                 )
                 {
                         GrandExchangeOffer offer =
-                                        offers[slot];
+                                offers[slot];
 
                         if (
-                                        offer == null
-                                                        || offer.getState() == null
-                                                        || offer.getState()
-                                                        == GrandExchangeOfferState.EMPTY
+                                offer == null
+                                        || offer.getState() == null
+                                        || offer.getState()
+                                        == GrandExchangeOfferState.EMPTY
                         )
                         {
                                 continue;
                         }
 
                         OfferSnapshot snapshot =
-                                        OfferSnapshot.from(
-                                                        offer
-                                        );
+                                OfferSnapshot.from(
+                                        offer
+                                );
 
                         synchronizeExistingOfferWithActiveFlip(
-                                        snapshot
+                                snapshot
                         );
 
                         offerSnapshots.put(
-                                        slot,
-                                        snapshot
+                                slot,
+                                snapshot
                         );
                 }
-
         }
 
         private void synchronizeExistingOfferWithActiveFlip(
-                        OfferSnapshot snapshot
+                OfferSnapshot snapshot
         )
         {
                 if (
-                                snapshot == null
-                                                || activeFlipStore == null
-                                                || snapshot.itemId <= 0
-                                                || snapshot.quantitySold <= 0
-                                                || snapshot.spent <= 0
+                        snapshot == null
+                                || activeFlipStore == null
+                                || snapshot.itemId <= 0
+                                || snapshot.quantitySold <= 0
+                                || snapshot.spent <= 0
                 )
                 {
                         return;
                 }
 
                 ActiveFlipStore.ActiveFlip activeFlip =
-                                activeFlipStore.findOpenByItemId(
-                                                snapshot.itemId
-                                );
+                        activeFlipStore.findOpenByItemId(
+                                snapshot.itemId
+                        );
 
                 if (activeFlip == null)
                 {
@@ -792,38 +809,38 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 if (isBuyState(
-                                snapshot.state
+                        snapshot.state
                 ))
                 {
                         synchronizeExistingBuyOffer(
-                                        activeFlip,
-                                        snapshot
+                                activeFlip,
+                                snapshot
                         );
 
                         return;
                 }
 
                 if (isSellState(
-                                snapshot.state
+                        snapshot.state
                 ))
                 {
                         synchronizeExistingSellOffer(
-                                        activeFlip,
-                                        snapshot
+                                activeFlip,
+                                snapshot
                         );
                 }
         }
 
         private void synchronizeExistingBuyOffer(
-                        ActiveFlipStore.ActiveFlip activeFlip,
-                        OfferSnapshot snapshot
+                ActiveFlipStore.ActiveFlip activeFlip,
+                OfferSnapshot snapshot
         )
         {
                 int geBoughtQuantity =
-                                snapshot.quantitySold;
+                        snapshot.quantitySold;
 
                 int storedBoughtQuantity =
-                                activeFlip.getBoughtQuantity();
+                        activeFlip.getBoughtQuantity();
 
                 if (geBoughtQuantity <= storedBoughtQuantity)
                 {
@@ -831,21 +848,21 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 int missingQuantity =
-                                geBoughtQuantity
-                                                - storedBoughtQuantity;
+                        geBoughtQuantity
+                                - storedBoughtQuantity;
 
                 long missingCost =
-                                snapshot.spent
-                                                - activeFlip.getTotalBuyCost();
+                        snapshot.spent
+                                - activeFlip.getTotalBuyCost();
 
                 if (missingCost <= 0)
                 {
                         missingCost =
-                                        estimateMissingValue(
-                                                        snapshot.spent,
-                                                        geBoughtQuantity,
-                                                        missingQuantity
-                                        );
+                                estimateMissingValue(
+                                        snapshot.spent,
+                                        geBoughtQuantity,
+                                        missingQuantity
+                                );
                 }
 
                 if (missingCost <= 0)
@@ -854,28 +871,28 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 activeFlipStore.recordBuyTotal(
-                                activeFlip.getId(),
-                                missingQuantity,
-                                missingCost
+                        activeFlip.getId(),
+                        missingQuantity,
+                        missingCost
                 );
 
                 log.info(
-                                "RuneRadar synced existing GE buy on login: {} +{} items",
-                                activeFlip.getItemName(),
-                                missingQuantity
+                        "RuneRadar synced existing GE buy on login: {} +{} items",
+                        activeFlip.getItemName(),
+                        missingQuantity
                 );
         }
 
         private void synchronizeExistingSellOffer(
-                        ActiveFlipStore.ActiveFlip activeFlip,
-                        OfferSnapshot snapshot
+                ActiveFlipStore.ActiveFlip activeFlip,
+                OfferSnapshot snapshot
         )
         {
                 int geSoldQuantity =
-                                snapshot.quantitySold;
+                        snapshot.quantitySold;
 
                 int storedSoldQuantity =
-                                activeFlip.getSoldQuantity();
+                        activeFlip.getSoldQuantity();
 
                 if (geSoldQuantity <= storedSoldQuantity)
                 {
@@ -883,21 +900,21 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 int missingQuantity =
-                                geSoldQuantity
-                                                - storedSoldQuantity;
+                        geSoldQuantity
+                                - storedSoldQuantity;
 
                 long missingGross =
-                                snapshot.spent
-                                                - activeFlip.getTotalSellGross();
+                        snapshot.spent
+                                - activeFlip.getTotalSellGross();
 
                 if (missingGross <= 0)
                 {
                         missingGross =
-                                        estimateMissingValue(
-                                                        snapshot.spent,
-                                                        geSoldQuantity,
-                                                        missingQuantity
-                                        );
+                                estimateMissingValue(
+                                        snapshot.spent,
+                                        geSoldQuantity,
+                                        missingQuantity
+                                );
                 }
 
                 if (missingGross <= 0)
@@ -906,107 +923,107 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 long estimatedTax =
-                                calculateEstimatedTaxForExecution(
-                                                missingGross,
-                                                missingQuantity
-                                );
+                        calculateEstimatedTaxForExecution(
+                                missingGross,
+                                missingQuantity
+                        );
 
                 activeFlipStore.recordSaleTotal(
-                                activeFlip.getId(),
-                                missingQuantity,
-                                missingGross,
-                                estimatedTax
+                        activeFlip.getId(),
+                        missingQuantity,
+                        missingGross,
+                        estimatedTax
                 );
 
                 log.info(
-                                "RuneRadar synced existing GE sale on login: {} +{} items",
-                                activeFlip.getItemName(),
-                                missingQuantity
+                        "RuneRadar synced existing GE sale on login: {} +{} items",
+                        activeFlip.getItemName(),
+                        missingQuantity
                 );
         }
 
         private long estimateMissingValue(
-                        long totalValue,
-                        int totalQuantity,
-                        int missingQuantity
+                long totalValue,
+                int totalQuantity,
+                int missingQuantity
         )
         {
                 if (
-                                totalValue <= 0
-                                                || totalQuantity <= 0
-                                                || missingQuantity <= 0
+                        totalValue <= 0
+                                || totalQuantity <= 0
+                                || missingQuantity <= 0
                 )
                 {
                         return 0;
                 }
 
                 return Math.max(
-                                1L,
-                                Math.round(
-                                                (double) totalValue
-                                                                / (double) totalQuantity
-                                                                * (double) missingQuantity
-                                )
+                        1L,
+                        Math.round(
+                                (double) totalValue
+                                        / (double) totalQuantity
+                                        * (double) missingQuantity
+                        )
                 );
         }
 
         private boolean isBuyState(
-                        GrandExchangeOfferState state
+                GrandExchangeOfferState state
         )
         {
                 return state == GrandExchangeOfferState.BUYING
-                                || state == GrandExchangeOfferState.BOUGHT
-                                || state == GrandExchangeOfferState.CANCELLED_BUY;
+                        || state == GrandExchangeOfferState.BOUGHT
+                        || state == GrandExchangeOfferState.CANCELLED_BUY;
         }
 
         private boolean isSellState(
-                        GrandExchangeOfferState state
+                GrandExchangeOfferState state
         )
         {
                 return state == GrandExchangeOfferState.SELLING
-                                || state == GrandExchangeOfferState.SOLD
-                                || state == GrandExchangeOfferState.CANCELLED_SELL;
+                        || state == GrandExchangeOfferState.SOLD
+                        || state == GrandExchangeOfferState.CANCELLED_SELL;
         }
 
         private long calculateEstimatedTaxForExecution(
-                        long grossSale,
-                        int quantity
+                long grossSale,
+                int quantity
         )
         {
                 if (
-                                grossSale <= 0
-                                                || quantity <= 0
+                        grossSale <= 0
+                                || quantity <= 0
                 )
                 {
                         return 0;
                 }
 
                 long averageSellPrice =
-                                grossSale
-                                                / quantity;
+                        grossSale
+                                / quantity;
 
                 if (
-                                averageSellPrice
-                                                < GE_TAX_MIN_PRICE
+                        averageSellPrice
+                                < GE_TAX_MIN_PRICE
                 )
                 {
                         return 0;
                 }
 
                 long taxPerItem =
-                                (long) Math.floor(
-                                                averageSellPrice
-                                                                * GE_TAX_RATE
-                                );
+                        (long) Math.floor(
+                                averageSellPrice
+                                        * GE_TAX_RATE
+                        );
 
                 taxPerItem =
-                                Math.min(
-                                                taxPerItem,
-                                                GE_TAX_CAP_PER_ITEM
-                                );
+                        Math.min(
+                                taxPerItem,
+                                GE_TAX_CAP_PER_ITEM
+                        );
 
                 return taxPerItem
-                                * (long) quantity;
+                        * (long) quantity;
         }
 
         private void refreshActiveFlipsPanel()
@@ -1017,7 +1034,7 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 SwingUtilities.invokeLater(
-                                activeFlipsPanel::refresh
+                        activeFlipsPanel::refresh
                 );
         }
 
@@ -1029,7 +1046,7 @@ public class RuneRadarPlugin extends Plugin
                 }
 
                 SwingUtilities.invokeLater(
-                                profitTrackerPanel::refreshStats
+                        profitTrackerPanel::refreshStats
                 );
         }
 
@@ -1054,58 +1071,58 @@ public class RuneRadarPlugin extends Plugin
         private BufferedImage createTemporaryIcon()
         {
                 int size =
-                                16;
+                        16;
 
                 BufferedImage image =
-                                new BufferedImage(
-                                                size,
-                                                size,
-                                                BufferedImage.TYPE_INT_ARGB
-                                );
+                        new BufferedImage(
+                                size,
+                                size,
+                                BufferedImage.TYPE_INT_ARGB
+                        );
 
                 Graphics2D graphics =
-                                image.createGraphics();
+                        image.createGraphics();
 
                 graphics.setRenderingHint(
-                                RenderingHints.KEY_ANTIALIASING,
-                                RenderingHints.VALUE_ANTIALIAS_ON
+                        RenderingHints.KEY_ANTIALIASING,
+                        RenderingHints.VALUE_ANTIALIAS_ON
                 );
 
                 graphics.setColor(
-                                new Color(
-                                                32,
-                                                120,
-                                                110
-                                )
+                        new Color(
+                                32,
+                                120,
+                                110
+                        )
                 );
 
                 graphics.fillOval(
-                                1,
-                                1,
-                                14,
-                                14
+                        1,
+                        1,
+                        14,
+                        14
                 );
 
                 graphics.setColor(
-                                new Color(
-                                                240,
-                                                190,
-                                                60
-                                )
+                        new Color(
+                                240,
+                                190,
+                                60
+                        )
                 );
 
                 graphics.drawOval(
-                                4,
-                                4,
-                                8,
-                                8
+                        4,
+                        4,
+                        8,
+                        8
                 );
 
                 graphics.drawLine(
-                                8,
-                                8,
-                                13,
-                                4
+                        8,
+                        8,
+                        13,
+                        4
                 );
 
                 graphics.dispose();
@@ -1114,16 +1131,51 @@ public class RuneRadarPlugin extends Plugin
         }
 
         // ========================================================
-        // CONFIG
+        // CONFIG / ANALYTICS IDENTITY
         // ========================================================
+
+        private String getOrCreateInstallId()
+        {
+                String installId =
+                        configManager.getConfiguration(
+                                CONFIG_GROUP,
+                                INSTALL_ID_KEY
+                        );
+
+                if (installId != null)
+                {
+                        installId =
+                                installId.trim();
+                }
+
+                if (
+                        installId != null
+                                && !installId.isEmpty()
+                )
+                {
+                        return installId;
+                }
+
+                installId =
+                        UUID.randomUUID()
+                                .toString();
+
+                configManager.setConfiguration(
+                        CONFIG_GROUP,
+                        INSTALL_ID_KEY,
+                        installId
+                );
+
+                return installId;
+        }
 
         @Provides
         RuneRadarConfig provideConfig(
-                        ConfigManager configManager
+                ConfigManager configManager
         )
         {
                 return configManager.getConfig(
-                                RuneRadarConfig.class
+                        RuneRadarConfig.class
                 );
         }
 
@@ -1146,49 +1198,49 @@ public class RuneRadarPlugin extends Plugin
                 private final GrandExchangeOfferState state;
 
                 private OfferSnapshot(
-                                int itemId,
-                                int totalQuantity,
-                                int offerPrice,
-                                int quantitySold,
-                                long spent,
-                                GrandExchangeOfferState state
+                        int itemId,
+                        int totalQuantity,
+                        int offerPrice,
+                        int quantitySold,
+                        long spent,
+                        GrandExchangeOfferState state
                 )
                 {
                         this.itemId =
-                                        itemId;
+                                itemId;
 
                         this.totalQuantity =
-                                        totalQuantity;
+                                totalQuantity;
 
                         this.offerPrice =
-                                        offerPrice;
+                                offerPrice;
 
                         this.quantitySold =
-                                        quantitySold;
+                                quantitySold;
 
                         this.spent =
-                                        spent;
+                                spent;
 
                         this.state =
-                                        state;
+                                state;
                 }
 
                 private static OfferSnapshot from(
-                                GrandExchangeOffer offer
+                        GrandExchangeOffer offer
                 )
                 {
                         return new OfferSnapshot(
-                                        offer.getItemId(),
-                                        offer.getTotalQuantity(),
-                                        offer.getPrice(),
-                                        offer.getQuantitySold(),
-                                        offer.getSpent(),
-                                        offer.getState()
+                                offer.getItemId(),
+                                offer.getTotalQuantity(),
+                                offer.getPrice(),
+                                offer.getQuantitySold(),
+                                offer.getSpent(),
+                                offer.getState()
                         );
                 }
 
                 private boolean matchesSameOffer(
-                                OfferSnapshot other
+                        OfferSnapshot other
                 )
                 {
                         if (other == null)
@@ -1197,46 +1249,46 @@ public class RuneRadarPlugin extends Plugin
                         }
 
                         return itemId == other.itemId
-                                        && totalQuantity == other.totalQuantity
-                                        && offerPrice == other.offerPrice
-                                        && sameSide(
-                                        state,
-                                        other.state
+                                && totalQuantity == other.totalQuantity
+                                && offerPrice == other.offerPrice
+                                && sameSide(
+                                state,
+                                other.state
                         );
                 }
 
                 private static boolean sameSide(
-                                GrandExchangeOfferState first,
-                                GrandExchangeOfferState second
+                        GrandExchangeOfferState first,
+                        GrandExchangeOfferState second
                 )
                 {
                         boolean firstBuy =
-                                        first == GrandExchangeOfferState.BUYING
-                                                        || first == GrandExchangeOfferState.BOUGHT
-                                                        || first == GrandExchangeOfferState.CANCELLED_BUY;
+                                first == GrandExchangeOfferState.BUYING
+                                        || first == GrandExchangeOfferState.BOUGHT
+                                        || first == GrandExchangeOfferState.CANCELLED_BUY;
 
                         boolean secondBuy =
-                                        second == GrandExchangeOfferState.BUYING
-                                                        || second == GrandExchangeOfferState.BOUGHT
-                                                        || second == GrandExchangeOfferState.CANCELLED_BUY;
+                                second == GrandExchangeOfferState.BUYING
+                                        || second == GrandExchangeOfferState.BOUGHT
+                                        || second == GrandExchangeOfferState.CANCELLED_BUY;
 
                         boolean firstSell =
-                                        first == GrandExchangeOfferState.SELLING
-                                                        || first == GrandExchangeOfferState.SOLD
-                                                        || first == GrandExchangeOfferState.CANCELLED_SELL;
+                                first == GrandExchangeOfferState.SELLING
+                                        || first == GrandExchangeOfferState.SOLD
+                                        || first == GrandExchangeOfferState.CANCELLED_SELL;
 
                         boolean secondSell =
-                                        second == GrandExchangeOfferState.SELLING
-                                                        || second == GrandExchangeOfferState.SOLD
-                                                        || second == GrandExchangeOfferState.CANCELLED_SELL;
+                                second == GrandExchangeOfferState.SELLING
+                                        || second == GrandExchangeOfferState.SOLD
+                                        || second == GrandExchangeOfferState.CANCELLED_SELL;
 
                         return (
-                                        firstBuy
-                                                        && secondBuy
+                                firstBuy
+                                        && secondBuy
                         )
-                                        || (
-                                        firstSell
-                                                        && secondSell
+                                || (
+                                firstSell
+                                        && secondSell
                         );
                 }
         }

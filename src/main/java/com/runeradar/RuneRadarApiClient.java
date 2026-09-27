@@ -18,6 +18,12 @@ public class RuneRadarApiClient
 
     private static OkHttpClient httpClient;
 
+    private static String installId =
+            "";
+
+    private static String pluginVersion =
+            "";
+
     public static void setGson(
             Gson injectedGson
     )
@@ -72,6 +78,77 @@ public class RuneRadarApiClient
         return httpClient;
     }
 
+    public static void setAnalyticsIdentity(
+            String analyticsInstallId,
+            String analyticsPluginVersion
+    )
+    {
+        installId =
+                cleanHeaderValue(
+                        analyticsInstallId
+                );
+
+        pluginVersion =
+                cleanHeaderValue(
+                        analyticsPluginVersion
+                );
+    }
+
+    private static String cleanHeaderValue(
+            String value
+    )
+    {
+        if (value == null)
+        {
+            return "";
+        }
+
+        return value
+                .trim()
+                .replace(
+                        "\r",
+                        ""
+                )
+                .replace(
+                        "\n",
+                        ""
+                );
+    }
+
+    private static Request.Builder createRequestBuilder(
+            String urlText
+    )
+    {
+        Request.Builder builder =
+                new Request.Builder()
+                        .url(
+                                urlText
+                        )
+                        .get()
+                        .header(
+                                "Accept",
+                                "application/json"
+                        );
+
+        if (!installId.isEmpty())
+        {
+            builder.header(
+                    "X-RuneRadar-Install-ID",
+                    installId
+            );
+        }
+
+        if (!pluginVersion.isEmpty())
+        {
+            builder.header(
+                    "X-RuneRadar-Version",
+                    pluginVersion
+            );
+        }
+
+        return builder;
+    }
+
     public ApiResponse getRecommendations(
             long cashStack,
             String flipType,
@@ -110,16 +187,9 @@ public class RuneRadarApiClient
                         + itemId;
 
         Request request =
-                new Request.Builder()
-                        .url(
-                                urlText
-                        )
-                        .get()
-                        .header(
-                                "Accept",
-                                "application/json"
-                        )
-                        .build();
+                createRequestBuilder(
+                        urlText
+                ).build();
 
         String responseText;
 
@@ -199,16 +269,9 @@ public class RuneRadarApiClient
                         + "&limit=" + limit;
 
         Request request =
-                new Request.Builder()
-                        .url(
-                                urlText
-                        )
-                        .get()
-                        .header(
-                                "Accept",
-                                "application/json"
-                        )
-                        .build();
+                createRequestBuilder(
+                        urlText
+                ).build();
 
         String responseText;
 
