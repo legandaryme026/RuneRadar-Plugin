@@ -3,8 +3,8 @@ package com.runeradar;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import net.runelite.api.Client;
+import net.runelite.api.gameval.InterfaceID;
 import net.runelite.api.widgets.Widget;
-import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPanel;
 import net.runelite.client.ui.overlay.OverlayPosition;
@@ -52,7 +52,7 @@ public class RuneRadarGrandExchangeOverlay extends OverlayPanel
 
         Widget grandExchangeOffer =
                 client.getWidget(
-                        WidgetInfo.GRAND_EXCHANGE_OFFER_CONTAINER
+                        InterfaceID.GeOffers.SETUP
                 );
 
         if (
