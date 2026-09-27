@@ -6,18 +6,18 @@ import com.google.gson.reflect.TypeToken;
 import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Type;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import net.runelite.client.util.Filepath;
 
 public class ProfitTrackerStore
 {
+    private static Filepath defaultDataDirectory;
+
     private static final double GE_TAX_RATE = 0.02;
 
     private static final long GE_TAX_CAP_PER_ITEM =
@@ -25,13 +25,32 @@ public class ProfitTrackerStore
 
     private final Gson gson;
 
-    private final Path storageFile;
+    private final Filepath storageFile;
 
     private final List<FlipRecord> records =
             new ArrayList<>();
 
     public ProfitTrackerStore()
     {
+        this(
+                getDefaultDataDirectory()
+        );
+    }
+
+    public ProfitTrackerStore(
+            Filepath dataDirectory
+    )
+    {
+        if (dataDirectory == null)
+        {
+            throw new IllegalArgumentException(
+                    "dataDirectory must not be null"
+            );
+        }
+
+        defaultDataDirectory =
+                dataDirectory;
+
         gson =
                 RuneRadarApiClient
                         .getInjectedGson()
@@ -40,59 +59,23 @@ public class ProfitTrackerStore
                         .create();
 
         storageFile =
-                createStoragePath();
+                dataDirectory.joinSegment(
+                        "profit_history.json"
+                );
 
         load();
     }
 
-    // ========================================================
-    // STORAGE LOCATION
-    // ========================================================
-
-    private Path createStoragePath()
+    private static Filepath getDefaultDataDirectory()
     {
-        String localAppData =
-                System.getenv(
-                        "LOCALAPPDATA"
-                );
-
-        Path directory;
-
-        if (
-                localAppData != null
-                        && !localAppData.isBlank()
-        )
+        if (defaultDataDirectory == null)
         {
-            directory =
-                    Paths.get(
-                            localAppData,
-                            "RuneRadar"
-                    );
-        }
-        else
-        {
-            directory =
-                    Paths.get(
-                            System.getProperty(
-                                    "user.home"
-                            ),
-                            ".runeradar"
-                    );
-        }
-
-        try
-        {
-            Files.createDirectories(
-                    directory
+            throw new IllegalStateException(
+                    "RuneRadar storage has not been initialized"
             );
         }
-        catch (Exception ignored)
-        {
-        }
 
-        return directory.resolve(
-                "profit_history.json"
-        );
+        return defaultDataDirectory;
     }
 
     // ========================================================
@@ -427,9 +410,7 @@ public class ProfitTrackerStore
         records.clear();
 
         if (
-                !Files.exists(
-                        storageFile
-                )
+                !storageFile.exists()
         )
         {
             return;
@@ -437,9 +418,7 @@ public class ProfitTrackerStore
 
         try (
                 Reader reader =
-                        Files.newBufferedReader(
-                                storageFile
-                        )
+                        storageFile.openBufferedReader()
         )
         {
             Type listType =
@@ -476,15 +455,12 @@ public class ProfitTrackerStore
     {
         try
         {
-            Files.createDirectories(
-                    storageFile.getParent()
-            );
+            storageFile.getParent()
+                    .createDirectories();
 
             try (
                     Writer writer =
-                            Files.newBufferedWriter(
-                                    storageFile
-                            )
+                            storageFile.openBufferedWriter()
             )
             {
                 gson.toJson(
