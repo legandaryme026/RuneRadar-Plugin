@@ -1,0 +1,35 @@
+name: RuneLite Compatibility Check
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    - cron: "0 6 * * *"
+
+  push:
+    branches:
+      - main
+      - post-merge-update
+
+  pull_request:
+
+jobs:
+  compatibility:
+    name: Fresh RuneLite compatibility build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout RuneRadar
+        uses: actions/checkout@v4
+
+      - name: Set up Java 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "11"
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x gradlew
+
+      - name: Compile against latest RuneLite
+        run: ./gradlew --refresh-dependencies clean compileJava
