@@ -1189,7 +1189,7 @@ public class RuneRadarPlugin extends Plugin
 
                 private final int totalQuantity;
 
-                private final int offerPrice;
+                private final long offerPrice;
 
                 private final int quantitySold;
 
@@ -1200,7 +1200,7 @@ public class RuneRadarPlugin extends Plugin
                 private OfferSnapshot(
                         int itemId,
                         int totalQuantity,
-                        int offerPrice,
+                        long offerPrice,
                         int quantitySold,
                         long spent,
                         GrandExchangeOfferState state
