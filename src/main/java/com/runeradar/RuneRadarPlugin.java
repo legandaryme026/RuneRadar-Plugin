@@ -62,7 +62,7 @@ public class RuneRadarPlugin extends Plugin
                 "installId";
 
         private static final String PLUGIN_BUILD_VERSION =
-                "1.1.0";
+                "1.2.0";
 
         @Inject
         private ClientToolbar clientToolbar;

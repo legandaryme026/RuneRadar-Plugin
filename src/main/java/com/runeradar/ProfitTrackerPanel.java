@@ -14,6 +14,7 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 
@@ -95,6 +96,12 @@ public class ProfitTrackerPanel extends JPanel
 
     private final JPanel historyPanel =
             new JPanel();
+
+    private final JButton clearHistoryButton =
+            new JButton("Clear History");
+
+    private final JButton resetTrackerButton =
+            new JButton("Reset Tracker");
 
     private boolean expanded =
             false;
@@ -414,6 +421,86 @@ public class ProfitTrackerPanel extends JPanel
 
         contentPanel.add(
                 historyPanel
+        );
+
+        contentPanel.add(
+                Box.createVerticalStrut(
+                        10
+                )
+        );
+
+        JPanel dataActions =
+                new JPanel();
+
+        dataActions.setLayout(
+                new BoxLayout(
+                        dataActions,
+                        BoxLayout.Y_AXIS
+                )
+        );
+
+        dataActions.setBackground(
+                CARD_BACKGROUND
+        );
+
+        dataActions.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        clearHistoryButton.setToolTipText(
+                "Remove saved history rows without changing tracker totals"
+        );
+
+        clearHistoryButton.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        clearHistoryButton.setMaximumSize(
+                new Dimension(
+                        Integer.MAX_VALUE,
+                        clearHistoryButton.getPreferredSize().height
+                )
+        );
+
+        clearHistoryButton.addActionListener(
+                event -> clearHistory()
+        );
+
+        resetTrackerButton.setToolTipText(
+                "Reset tracker totals without deleting saved history rows"
+        );
+
+        resetTrackerButton.setAlignmentX(
+                LEFT_ALIGNMENT
+        );
+
+        resetTrackerButton.setMaximumSize(
+                new Dimension(
+                        Integer.MAX_VALUE,
+                        resetTrackerButton.getPreferredSize().height
+                )
+        );
+
+        resetTrackerButton.addActionListener(
+                event -> resetTracker()
+        );
+
+        dataActions.add(
+                clearHistoryButton
+        );
+
+        dataActions.add(
+                Box.createVerticalStrut(
+                        5
+                )
+        );
+
+        dataActions.add(
+                resetTrackerButton
+        );
+
+        contentPanel.add(
+                dataActions
         );
     }
 
@@ -966,6 +1053,62 @@ public class ProfitTrackerPanel extends JPanel
 
         historyPanel.revalidate();
         historyPanel.repaint();
+    }
+
+    private void clearHistory()
+    {
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Remove all saved completed-flip history rows?\n\n"
+                        + "Tracker totals and statistics will stay unchanged.",
+                "Clear Profit History",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (choice != JOptionPane.YES_OPTION)
+        {
+            return;
+        }
+
+        store.clearHistory();
+        refreshHistory();
+
+        messageLabel.setForeground(
+                GREEN
+        );
+
+        messageLabel.setText(
+                "History cleared; tracker totals kept"
+        );
+    }
+
+    private void resetTracker()
+    {
+        int choice = JOptionPane.showConfirmDialog(
+                this,
+                "Reset session, today, all-time and completed-flip statistics?\n\n"
+                        + "Saved completed-flip history rows will stay available.",
+                "Reset Profit Tracker",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+
+        if (choice != JOptionPane.YES_OPTION)
+        {
+            return;
+        }
+
+        store.resetStatistics();
+        refreshStats();
+
+        messageLabel.setForeground(
+                GREEN
+        );
+
+        messageLabel.setText(
+                "Tracker statistics reset; history kept"
+        );
     }
 
     private JPanel createHistoryRow(

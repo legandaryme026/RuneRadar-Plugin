@@ -1,6 +1,7 @@
 package com.runeradar;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.Reader;
@@ -29,6 +30,17 @@ public class ProfitTrackerStore
 
     private final List<FlipRecord> records =
             new ArrayList<>();
+
+    private long sessionProfit;
+
+    private long todayProfit;
+
+    private String todayDate =
+            LocalDate.now().toString();
+
+    private long totalProfit;
+
+    private int completedFlipCount;
 
     public ProfitTrackerStore()
     {
@@ -164,6 +176,10 @@ public class ProfitTrackerStore
                 record
         );
 
+        recordStatistics(
+                record
+        );
+
         sortNewestFirst();
 
         save();
@@ -230,6 +246,10 @@ public class ProfitTrackerStore
                 record
         );
 
+        recordStatistics(
+                record
+        );
+
         sortNewestFirst();
 
         save();
@@ -270,80 +290,24 @@ public class ProfitTrackerStore
             long sessionStartedAt
     )
     {
-        long total = 0;
-
-        for (
-                FlipRecord record
-                : records
-        )
-        {
-            if (
-                    record.getTimestamp()
-                            >= sessionStartedAt
-            )
-            {
-                total +=
-                        record.getNetProfit();
-            }
-        }
-
-        return total;
+        return sessionProfit;
     }
 
     public long getTodayProfit()
     {
-        LocalDate today =
-                LocalDate.now();
+        rollDailyStatisticsIfNeeded();
 
-        long total = 0;
-
-        for (
-                FlipRecord record
-                : records
-        )
-        {
-            LocalDate recordDate =
-                    Instant.ofEpochSecond(
-                                    record.getTimestamp()
-                            )
-                            .atZone(
-                                    ZoneId.systemDefault()
-                            )
-                            .toLocalDate();
-
-            if (
-                    recordDate.equals(
-                            today
-                    )
-            )
-            {
-                total +=
-                        record.getNetProfit();
-            }
-        }
-
-        return total;
+        return todayProfit;
     }
 
     public long getTotalProfit()
     {
-        long total = 0;
-
-        for (
-                FlipRecord record
-                : records
-        )
-        {
-            total +=
-                    record.getNetProfit();
-        }
-
-        return total;
+        return totalProfit;
     }
 
     public int getCompletedFlipCount()
     {
-        return records.size();
+        return completedFlipCount;
     }
 
     // ========================================================
@@ -401,6 +365,17 @@ public class ProfitTrackerStore
         save();
     }
 
+    public void resetStatistics()
+    {
+        sessionProfit = 0;
+        todayProfit = 0;
+        todayDate = LocalDate.now().toString();
+        totalProfit = 0;
+        completedFlipCount = 0;
+
+        save();
+    }
+
     // ========================================================
     // LOAD / SAVE
     // ========================================================
@@ -408,6 +383,12 @@ public class ProfitTrackerStore
     private void load()
     {
         records.clear();
+
+        sessionProfit = 0;
+        todayProfit = 0;
+        todayDate = LocalDate.now().toString();
+        totalProfit = 0;
+        completedFlipCount = 0;
 
         if (
                 !storageFile.exists()
@@ -421,30 +402,80 @@ public class ProfitTrackerStore
                         storageFile.openBufferedReader()
         )
         {
-            Type listType =
-                    new TypeToken<
-                            List<FlipRecord>
-                            >()
-                    {
-                    }
-                            .getType();
-
-            List<FlipRecord> loaded =
+            JsonElement root =
                     gson.fromJson(
                             reader,
-                            listType
+                            JsonElement.class
                     );
 
-            if (
-                    loaded != null
-            )
+            if (root == null)
             {
-                records.addAll(
-                        loaded
-                );
+                return;
+            }
+
+            if (root.isJsonArray())
+            {
+                Type listType =
+                        new TypeToken<
+                                List<FlipRecord>
+                                >()
+                        {
+                        }
+                                .getType();
+
+                List<FlipRecord> loaded =
+                        gson.fromJson(
+                                root,
+                                listType
+                        );
+
+                if (loaded != null)
+                {
+                    records.addAll(
+                            loaded
+                    );
+                }
+
+                rebuildStatisticsFromHistory();
+                save();
+            }
+            else
+            {
+                TrackerData loaded =
+                        gson.fromJson(
+                                root,
+                                TrackerData.class
+                        );
+
+                if (
+                        loaded != null
+                                && loaded.records != null
+                )
+                {
+                    records.addAll(
+                            loaded.records
+                    );
+                }
+
+                if (
+                        loaded == null
+                                || loaded.schemaVersion < 2
+                )
+                {
+                    rebuildStatisticsFromHistory();
+                }
+                else
+                {
+                    todayProfit = loaded.todayProfit;
+                    todayDate = loaded.todayDate;
+                    totalProfit = loaded.totalProfit;
+                    completedFlipCount = loaded.completedFlipCount;
+                }
             }
 
             sortNewestFirst();
+
+            rollDailyStatisticsIfNeeded();
         }
         catch (Exception ignored)
         {
@@ -464,7 +495,13 @@ public class ProfitTrackerStore
             )
             {
                 gson.toJson(
-                        records,
+                        new TrackerData(
+                                records,
+                                todayProfit,
+                                todayDate,
+                                totalProfit,
+                                completedFlipCount
+                        ),
                         writer
                 );
             }
@@ -484,6 +521,60 @@ public class ProfitTrackerStore
         );
     }
 
+    private void recordStatistics(
+            FlipRecord record
+    )
+    {
+        rollDailyStatisticsIfNeeded();
+
+        sessionProfit += record.getNetProfit();
+        todayProfit += record.getNetProfit();
+        totalProfit += record.getNetProfit();
+        completedFlipCount++;
+    }
+
+    private void rollDailyStatisticsIfNeeded()
+    {
+        String currentDate =
+                LocalDate.now().toString();
+
+        if (!currentDate.equals(todayDate))
+        {
+            todayDate = currentDate;
+            todayProfit = 0;
+        }
+    }
+
+    private void rebuildStatisticsFromHistory()
+    {
+        LocalDate currentDate =
+                LocalDate.now();
+
+        todayDate = currentDate.toString();
+        todayProfit = 0;
+        totalProfit = 0;
+        completedFlipCount = records.size();
+
+        for (FlipRecord record : records)
+        {
+            totalProfit += record.getNetProfit();
+
+            LocalDate recordDate =
+                    Instant.ofEpochSecond(
+                                    record.getTimestamp()
+                            )
+                            .atZone(
+                                    ZoneId.systemDefault()
+                            )
+                            .toLocalDate();
+
+            if (currentDate.equals(recordDate))
+            {
+                todayProfit += record.getNetProfit();
+            }
+        }
+    }
+
     private long safeMultiply(
             long first,
             long second
@@ -501,6 +592,41 @@ public class ProfitTrackerStore
             throw new IllegalArgumentException(
                     "The entered values are too large."
             );
+        }
+    }
+
+    private static class TrackerData
+    {
+        private int schemaVersion = 2;
+
+        private List<FlipRecord> records =
+                new ArrayList<>();
+
+        private long todayProfit;
+
+        private String todayDate;
+
+        private long totalProfit;
+
+        private int completedFlipCount;
+
+        private TrackerData()
+        {
+        }
+
+        private TrackerData(
+                List<FlipRecord> records,
+                long todayProfit,
+                String todayDate,
+                long totalProfit,
+                int completedFlipCount
+        )
+        {
+            this.records = new ArrayList<>(records);
+            this.todayProfit = todayProfit;
+            this.todayDate = todayDate;
+            this.totalProfit = totalProfit;
+            this.completedFlipCount = completedFlipCount;
         }
     }
 

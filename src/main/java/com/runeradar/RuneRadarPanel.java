@@ -8,11 +8,13 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
@@ -44,7 +46,17 @@ public class RuneRadarPanel extends PluginPanel
     private static final Color RED =
             new Color(220, 90, 90);
 
-    private static final int RESULT_LIMIT = 20;
+    private static final int MAX_RESULT_LIMIT = 50;
+
+    private static final String CONFIG_GROUP = "runeradar";
+
+    private static final String RESULT_MODE_KEY = "recommendationResultMode";
+
+    private static final String FLIP_TYPE_KEY = "recommendationFlipType";
+
+    private static final String SORT_MODE_KEY = "recommendationSortMode";
+
+    private static final String ADVANCED_VISIBLE_KEY = "advancedDetailsVisible";
 
     private static final int AUTO_REFRESH_SECONDS = 60;
 
@@ -110,6 +122,20 @@ public class RuneRadarPanel extends PluginPanel
 
     private String currentFlipType =
             "FAST";
+
+    private final JComboBox<String> sortSelector =
+            new JComboBox<>(
+                    new String[] {
+                            "Default ranking",
+                            "Profit",
+                            "ROI",
+                            "Score",
+                            "Volume"
+                    }
+            );
+
+    private String currentSortMode =
+            "DEFAULT";
 
     // ========================================================
     // MAIN RESULT
@@ -250,6 +276,10 @@ public class RuneRadarPanel extends PluginPanel
             recommendations =
             new ArrayList<>();
 
+    private List<RuneRadarApiClient.Recommendation>
+            defaultRecommendations =
+            new ArrayList<>();
+
     private int currentIndex = 0;
 
     private long updatedAt = 0;
@@ -330,6 +360,40 @@ public class RuneRadarPanel extends PluginPanel
 
         this.configManager = configManager;
 
+        currentResultMode = loadPersistedChoice(
+                RESULT_MODE_KEY,
+                "STRONG",
+                "STRONG",
+                "MORE"
+        );
+
+        currentFlipType = loadPersistedChoice(
+                FLIP_TYPE_KEY,
+                "FAST",
+                "FAST",
+                "BALANCED",
+                "SLOW",
+                "HIGH_PROFIT",
+                "ALL"
+        );
+
+        currentSortMode = loadPersistedChoice(
+                SORT_MODE_KEY,
+                "DEFAULT",
+                "DEFAULT",
+                "PROFIT",
+                "ROI",
+                "SCORE",
+                "VOLUME"
+        );
+
+        advancedVisible = Boolean.parseBoolean(
+                getPersistedValue(
+                        ADVANCED_VISIBLE_KEY,
+                        "false"
+                )
+        );
+
         this.activeFlipStore =
                 activeFlipStore != null
                         ? activeFlipStore
@@ -402,6 +466,8 @@ public class RuneRadarPanel extends PluginPanel
 
         updateFlipTypeButtons();
 
+        updateSortSelector();
+
         autoRefreshTimer =
                 new Timer(
                         AUTO_REFRESH_SECONDS * 1000,
@@ -440,6 +506,69 @@ public class RuneRadarPanel extends PluginPanel
                 false,
                 false
         );
+    }
+
+    private String getPersistedValue(
+            String key,
+            String fallback
+    )
+    {
+        if (configManager == null)
+        {
+            return fallback;
+        }
+
+        String value = configManager.getConfiguration(
+                CONFIG_GROUP,
+                key
+        );
+
+        if (
+                value == null
+                        || value.trim().isEmpty()
+        )
+        {
+            return fallback;
+        }
+
+        return value.trim();
+    }
+
+    private String loadPersistedChoice(
+            String key,
+            String fallback,
+            String... allowedValues
+    )
+    {
+        String value = getPersistedValue(
+                key,
+                fallback
+        ).toUpperCase();
+
+        for (String allowedValue : allowedValues)
+        {
+            if (allowedValue.equals(value))
+            {
+                return value;
+            }
+        }
+
+        return fallback;
+    }
+
+    private void persistSetting(
+            String key,
+            Object value
+    )
+    {
+        if (configManager != null)
+        {
+            configManager.setConfiguration(
+                    CONFIG_GROUP,
+                    key,
+                    value
+            );
+        }
     }
 
     // ========================================================
@@ -575,6 +704,16 @@ public class RuneRadarPanel extends PluginPanel
 
         wrapper.add(
                 createFlipTypeButtons()
+        );
+
+        wrapper.add(
+                Box.createVerticalStrut(
+                        6
+                )
+        );
+
+        wrapper.add(
+                createSortSection()
         );
 
         return wrapper;
@@ -955,6 +1094,11 @@ public class RuneRadarPanel extends PluginPanel
         currentResultMode =
                 mode;
 
+        persistSetting(
+                RESULT_MODE_KEY,
+                currentResultMode
+        );
+
         currentIndex = 0;
 
         updateModeLabel();
@@ -1113,6 +1257,11 @@ public class RuneRadarPanel extends PluginPanel
         currentFlipType =
                 flipType;
 
+        persistSetting(
+                FLIP_TYPE_KEY,
+                currentFlipType
+        );
+
         currentIndex = 0;
 
         updateFlipTypeButtons();
@@ -1161,6 +1310,174 @@ public class RuneRadarPanel extends PluginPanel
                         "ALL"
                 )
         );
+    }
+
+    private JPanel createSortSection()
+    {
+        JPanel panel =
+                new JPanel(
+                        new BorderLayout(
+                                6,
+                                0
+                        )
+                );
+
+        panel.setBackground(
+                BACKGROUND
+        );
+
+        JLabel label =
+                new JLabel(
+                        "Sort"
+                );
+
+        label.setForeground(
+                MUTED
+        );
+
+        sortSelector.setToolTipText(
+                "Default keeps RuneRadar's recommended ranking"
+        );
+
+        sortSelector.addActionListener(
+                event -> setSortModeFromSelector()
+        );
+
+        panel.add(
+                label,
+                BorderLayout.WEST
+        );
+
+        panel.add(
+                sortSelector,
+                BorderLayout.CENTER
+        );
+
+        return panel;
+    }
+
+    private void updateSortSelector()
+    {
+        String displayValue;
+
+        switch (currentSortMode)
+        {
+            case "PROFIT":
+                displayValue = "Profit";
+                break;
+
+            case "ROI":
+                displayValue = "ROI";
+                break;
+
+            case "SCORE":
+                displayValue = "Score";
+                break;
+
+            case "VOLUME":
+                displayValue = "Volume";
+                break;
+
+            default:
+                displayValue = "Default ranking";
+                break;
+        }
+
+        sortSelector.setSelectedItem(
+                displayValue
+        );
+    }
+
+    private void setSortModeFromSelector()
+    {
+        Object selected =
+                sortSelector.getSelectedItem();
+
+        String selectedText =
+                selected == null
+                        ? "Default ranking"
+                        : selected.toString();
+
+        switch (selectedText)
+        {
+            case "Profit":
+                currentSortMode = "PROFIT";
+                break;
+
+            case "ROI":
+                currentSortMode = "ROI";
+                break;
+
+            case "Score":
+                currentSortMode = "SCORE";
+                break;
+
+            case "Volume":
+                currentSortMode = "VOLUME";
+                break;
+
+            default:
+                currentSortMode = "DEFAULT";
+                break;
+        }
+
+        persistSetting(
+                SORT_MODE_KEY,
+                currentSortMode
+        );
+
+        applyRecommendationSort();
+
+        currentIndex = 0;
+
+        showCurrentFlip();
+    }
+
+    private void applyRecommendationSort()
+    {
+        recommendations =
+                new ArrayList<>(
+                        defaultRecommendations
+                );
+
+        Comparator<RuneRadarApiClient.Recommendation> comparator = null;
+
+        switch (currentSortMode)
+        {
+            case "PROFIT":
+                comparator = Comparator.comparingLong(
+                        RuneRadarApiClient.Recommendation::getNetExpectedProfit
+                );
+                break;
+
+            case "ROI":
+                comparator = Comparator.comparingDouble(
+                        RuneRadarApiClient.Recommendation::getRoi
+                );
+                break;
+
+            case "SCORE":
+                comparator = Comparator.comparingInt(
+                        RuneRadarApiClient.Recommendation::getScore
+                );
+                break;
+
+            case "VOLUME":
+                comparator = Comparator.comparingLong(
+                        RuneRadarApiClient.Recommendation::getVolume
+                );
+                break;
+
+            default:
+                break;
+        }
+
+        if (comparator != null)
+        {
+            recommendations.sort(
+                    comparator.reversed()
+            );
+        }
     }
 
     // ========================================================
@@ -1615,7 +1932,13 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         advancedPanel.setVisible(
-                false
+                advancedVisible
+        );
+
+        advancedButton.setText(
+                advancedVisible
+                        ? "Hide Advanced Details"
+                        : "Show Advanced Details"
         );
     }
 
@@ -1663,6 +1986,11 @@ public class RuneRadarPanel extends PluginPanel
                 advancedVisible
                         ? "Hide Advanced Details"
                         : "Show Advanced Details"
+        );
+
+        persistSetting(
+                ADVANCED_VISIBLE_KEY,
+                advancedVisible
         );
 
         revalidate();
@@ -2007,10 +2335,22 @@ public class RuneRadarPanel extends PluginPanel
                 false
         );
 
+        sortSelector.setEnabled(
+                !blockingLoad
+        );
+
         if (quietRefresh)
         {
             updatedLabel.setText(
                     "Refreshing market data..."
+            );
+
+            statusLabel.setForeground(
+                    GOLD
+            );
+
+            statusLabel.setText(
+                    "Loading latest recommendations..."
             );
         }
         else
@@ -2047,7 +2387,7 @@ public class RuneRadarPanel extends PluginPanel
                                             apiClient.getMoreOpportunities(
                                                     cashStack,
                                                     requestedFlipType,
-                                                    RESULT_LIMIT
+                                                    MAX_RESULT_LIMIT
                                             );
                                 }
                                 else
@@ -2056,7 +2396,7 @@ public class RuneRadarPanel extends PluginPanel
                                             apiClient.getRecommendations(
                                                     cashStack,
                                                     requestedFlipType,
-                                                    RESULT_LIMIT
+                                                    MAX_RESULT_LIMIT
                                             );
                                 }
 
@@ -2071,10 +2411,12 @@ public class RuneRadarPanel extends PluginPanel
                                                 return;
                                             }
 
-                                            recommendations =
+                                            defaultRecommendations =
                                                     new ArrayList<>(
                                                             response.getRecommendations()
                                                     );
+
+                                            applyRecommendationSort();
 
                                             updatedAt =
                                                     response.getUpdatedAt();
@@ -2093,6 +2435,10 @@ public class RuneRadarPanel extends PluginPanel
                                             );
 
                                             refreshButton.setEnabled(
+                                                    true
+                                            );
+
+                                            sortSelector.setEnabled(
                                                     true
                                             );
 
@@ -2145,6 +2491,10 @@ public class RuneRadarPanel extends PluginPanel
                                                     true
                                             );
 
+                                            sortSelector.setEnabled(
+                                                    true
+                                            );
+
                                             updateResultModeButtons();
 
                                             updateFlipTypeButtons();
@@ -2169,7 +2519,10 @@ public class RuneRadarPanel extends PluginPanel
                                                 );
 
                                                 statusLabel.setText(
-                                                        "Refresh failed • showing last valid data"
+                                                        friendlyApiError(
+                                                                exception.getMessage(),
+                                                                true
+                                                        )
                                                 );
                                             }
                                         }
@@ -2254,8 +2607,18 @@ public class RuneRadarPanel extends PluginPanel
     {
         recommendations.clear();
 
+        defaultRecommendations.clear();
+
+        boolean proRequired =
+                message != null
+                        && message.toLowerCase().contains(
+                        "runeradar pro"
+                );
+
         itemNameLabel.setText(
-                "RuneRadar API offline"
+                proRequired
+                        ? "RuneRadar Pro required"
+                        : "RuneRadar API unavailable"
         );
 
         buyLabel.setText(
@@ -2293,7 +2656,9 @@ public class RuneRadarPanel extends PluginPanel
         clearAdvancedDetails();
 
         updatedLabel.setText(
-                "Could not reach hosted RuneRadar API."
+                proRequired
+                        ? "This recommendation mode is Pro-only."
+                        : "The backend or network is currently unavailable."
         );
 
         statusLabel.setForeground(
@@ -2301,9 +2666,10 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         statusLabel.setText(
-                message == null
-                        ? "Connection failed"
-                        : message
+                friendlyApiError(
+                        message,
+                        false
+                )
         );
 
         updateNavigationButtons();
@@ -2501,7 +2867,7 @@ public class RuneRadarPanel extends PluginPanel
             clearAdvancedDetails();
 
             updatedLabel.setText(
-                    "No matching opportunities right now."
+                    "No results met the current quality and safety filters."
             );
 
             statusLabel.setForeground(
@@ -2509,7 +2875,9 @@ public class RuneRadarPanel extends PluginPanel
             );
 
             statusLabel.setText(
-                    "Try another flip type"
+                    "Last updated "
+                            + secondsAgo()
+                            + " sec ago • try another type or cash stack"
             );
 
             updateNavigationButtons();
@@ -2933,10 +3301,33 @@ public class RuneRadarPanel extends PluginPanel
                         + (currentIndex + 1)
                         + " of "
                         + recommendations.size()
-                        + " • updated "
+                        + " • Last updated "
                         + secondsAgo()
                         + " sec ago"
         );
+    }
+
+    private String friendlyApiError(
+            String message,
+            boolean keepingPreviousData
+    )
+    {
+        String cleaned =
+                message == null
+                        ? ""
+                        : message.trim();
+
+        if (cleaned.toLowerCase().contains("runeradar pro"))
+        {
+            return cleaned;
+        }
+
+        if (keepingPreviousData)
+        {
+            return "Refresh failed • showing last valid data";
+        }
+
+        return "Could not load recommendations • check your connection and retry";
     }
 
     // ========================================================

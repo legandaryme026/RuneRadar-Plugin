@@ -12,7 +12,10 @@ import okhttp3.ResponseBody;
 public class RuneRadarApiClient
 {
     private static final String API_BASE_URL =
-            "https://runeradar-production.up.railway.app";
+            System.getProperty(
+                    "runeradar.apiBaseUrl",
+                    "https://runeradar-production.up.railway.app"
+            );
 
     private static Gson gson;
 
@@ -204,9 +207,8 @@ public class RuneRadarApiClient
         {
             if (!response.isSuccessful())
             {
-                throw new RuntimeException(
-                        "RuneRadar API returned HTTP "
-                                + response.code()
+                throw createApiException(
+                        response
                 );
             }
 
@@ -286,9 +288,8 @@ public class RuneRadarApiClient
         {
             if (!response.isSuccessful())
             {
-                throw new RuntimeException(
-                        "RuneRadar API returned HTTP "
-                                + response.code()
+                throw createApiException(
+                        response
                 );
             }
 
@@ -331,6 +332,51 @@ public class RuneRadarApiClient
         }
 
         return response;
+    }
+
+    private static RuntimeException createApiException(
+            Response response
+    )
+    {
+        String message =
+                "RuneRadar API returned HTTP "
+                        + response.code();
+
+        ResponseBody responseBody =
+                response.body();
+
+        if (responseBody != null)
+        {
+            try
+            {
+                ApiErrorResponse apiError =
+                        getInjectedGson().fromJson(
+                                responseBody.string(),
+                                ApiErrorResponse.class
+                        );
+
+                if (
+                        apiError != null
+                                && apiError.message != null
+                                && !apiError.message.trim().isEmpty()
+                )
+                {
+                    message = apiError.message.trim();
+                }
+            }
+            catch (Exception ignored)
+            {
+            }
+        }
+
+        return new RuntimeException(
+                message
+        );
+    }
+
+    private static class ApiErrorResponse
+    {
+        private String message;
     }
 
     public static class MarketItemResponse
@@ -485,6 +531,13 @@ public class RuneRadarApiClient
         )
         private String profitBasis;
 
+        private String plan;
+
+        @SerializedName(
+                "recommendation_limit"
+        )
+        private int recommendationLimit;
+
         private List<Recommendation>
                 recommendations;
 
@@ -531,6 +584,16 @@ public class RuneRadarApiClient
         public String getProfitBasis()
         {
             return profitBasis;
+        }
+
+        public String getPlan()
+        {
+            return plan;
+        }
+
+        public int getRecommendationLimit()
+        {
+            return recommendationLimit;
         }
 
         public List<Recommendation>
@@ -647,6 +710,8 @@ public class RuneRadarApiClient
                 "liquidity_quantity"
         )
         private long liquidityQuantity;
+
+        private long volume;
 
         // ====================================================
         // QUALITY / MARKET
@@ -855,6 +920,11 @@ public class RuneRadarApiClient
         public long getLiquidityQuantity()
         {
             return liquidityQuantity;
+        }
+
+        public long getVolume()
+        {
+            return volume;
         }
 
         public String getRisk()
