@@ -10,18 +10,21 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.util.LinkBrowser;
 
 public class RuneRadarPanel extends PluginPanel
 {
@@ -58,6 +61,10 @@ public class RuneRadarPanel extends PluginPanel
 
     private static final String ADVANCED_VISIBLE_KEY = "advancedDetailsVisible";
 
+    private static final String AUTH_DEVICE_ID_KEY = "authDeviceId";
+
+    private static final String AUTH_SESSION_TOKEN_KEY = "authSessionToken";
+
     private static final int AUTO_REFRESH_SECONDS = 60;
 
     private static final long MAX_CASH_STACK =
@@ -72,6 +79,1031 @@ public class RuneRadarPanel extends PluginPanel
 
     private final NumberFormat numberFormat =
             NumberFormat.getIntegerInstance();
+
+    // ========================================================
+    // ACCOUNT
+    // ========================================================
+
+    private final JPanel accountContent =
+            new JPanel();
+
+    private final JLabel accountStatusLabel =
+            new JLabel();
+
+    private final JTextField emailInput =
+            new JTextField();
+
+    private final JTextField verificationCodeInput =
+            new JTextField();
+
+    private final JButton requestCodeButton =
+            new JButton("Send code");
+
+    private final JButton verifyCodeButton =
+            new JButton("Verify & sign in");
+
+    private String deviceId;
+
+    private String sessionToken;
+
+    private String accountEmail = "";
+
+    private String accountPlan = "FREE";
+
+    private List<RuneRadarApiClient.Device> accountDevices =
+            new ArrayList<>();
+
+    private int maximumDevices = 3;
+
+    private boolean devicesVisible = false;
+
+    private boolean accountBusy = false;
+
+    // ========================================================
+    // ACCOUNT
+    // ========================================================
+
+    private JPanel createAccountSection()
+    {
+        JPanel wrapper =
+                new JPanel();
+
+        wrapper.setLayout(
+                new BoxLayout(
+                        wrapper,
+                        BoxLayout.Y_AXIS
+                )
+        );
+
+        wrapper.setBackground(
+                CARD_BACKGROUND
+        );
+
+        wrapper.setBorder(
+                BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(
+                                new Color(70, 70, 70)
+                        ),
+                        BorderFactory.createEmptyBorder(
+                                8,
+                                8,
+                                8,
+                                8
+                        )
+                )
+        );
+
+        JLabel title =
+                new JLabel(
+                        "ACCOUNT"
+                );
+
+        title.setForeground(GOLD);
+        title.setFont(
+                title.getFont().deriveFont(
+                        Font.BOLD,
+                        12f
+                )
+        );
+
+        accountContent.setLayout(
+                new BoxLayout(
+                        accountContent,
+                        BoxLayout.Y_AXIS
+                )
+        );
+        accountContent.setBackground(CARD_BACKGROUND);
+
+        accountStatusLabel.setForeground(MUTED);
+        accountStatusLabel.setFont(
+                accountStatusLabel.getFont().deriveFont(
+                        Font.BOLD,
+                        13f
+                )
+        );
+
+        emailInput.setToolTipText(
+                "Email address for your RuneRadar account"
+        );
+        verificationCodeInput.setToolTipText(
+                "Enter the 6-digit code from your email"
+        );
+
+        requestCodeButton.addActionListener(
+                event -> requestLoginCode()
+        );
+        verifyCodeButton.addActionListener(
+                event -> verifyLoginCode()
+        );
+        emailInput.addActionListener(
+                event -> requestLoginCode()
+        );
+        verificationCodeInput.addActionListener(
+                event -> verifyLoginCode()
+        );
+
+        wrapper.add(title);
+        wrapper.add(Box.createVerticalStrut(7));
+        wrapper.add(accountContent);
+        wrapper.add(Box.createVerticalStrut(5));
+        wrapper.add(accountStatusLabel);
+
+        return wrapper;
+    }
+
+    private void renderAccountContent()
+    {
+        accountContent.removeAll();
+
+        if (sessionToken.isEmpty() || accountEmail.isEmpty())
+        {
+            renderSignedOutAccount();
+        }
+        else
+        {
+            renderSignedInAccount();
+        }
+
+        accountContent.revalidate();
+        accountContent.repaint();
+        updateResultModeButtons();
+        updateFlipTypeButtons();
+    }
+
+    private boolean hasProAccess()
+    {
+        return "PRO".equalsIgnoreCase(
+                accountPlan
+        );
+    }
+
+    private boolean resetFreeOnlySelections()
+    {
+        if (hasProAccess())
+        {
+            return false;
+        }
+
+        boolean changed = false;
+
+        if ("MORE".equals(currentResultMode))
+        {
+            currentResultMode = "STRONG";
+            persistSetting(
+                    RESULT_MODE_KEY,
+                    currentResultMode
+            );
+            changed = true;
+        }
+
+        if ("HIGH_PROFIT".equals(currentFlipType))
+        {
+            currentFlipType = "FAST";
+            persistSetting(
+                    FLIP_TYPE_KEY,
+                    currentFlipType
+            );
+            changed = true;
+        }
+
+        if (changed)
+        {
+            currentIndex = 0;
+            updateModeLabel();
+            updateResultModeButtons();
+            updateFlipTypeButtons();
+        }
+
+        return changed;
+    }
+
+    private void renderSignedOutAccount()
+    {
+        JLabel description =
+                createAccountLabel(
+                        "Sign in with a one-time email code."
+                );
+
+        emailInput.setEnabled(!accountBusy);
+        verificationCodeInput.setEnabled(!accountBusy);
+        requestCodeButton.setEnabled(!accountBusy);
+        verifyCodeButton.setEnabled(!accountBusy);
+
+        accountContent.add(description);
+        accountContent.add(Box.createVerticalStrut(6));
+        accountContent.add(emailInput);
+        accountContent.add(Box.createVerticalStrut(5));
+        accountContent.add(requestCodeButton);
+        accountContent.add(Box.createVerticalStrut(7));
+        accountContent.add(verificationCodeInput);
+        accountContent.add(Box.createVerticalStrut(5));
+        accountContent.add(verifyCodeButton);
+    }
+
+    private void renderSignedInAccount()
+    {
+        JLabel signedInLabel =
+                createAccountLabel(
+                        "Signed in"
+                );
+
+        signedInLabel.setForeground(MUTED);
+
+        int atIndex =
+                accountEmail.indexOf('@');
+
+        String emailFirstLine =
+                atIndex > 0
+                        ? accountEmail.substring(0, atIndex)
+                        : accountEmail;
+
+        String emailSecondLine =
+                atIndex > 0
+                        ? accountEmail.substring(atIndex)
+                        : "";
+
+        JLabel emailLabel =
+                createAccountLabel(
+                        emailFirstLine
+                );
+
+        emailLabel.setToolTipText(accountEmail);
+
+        JLabel emailDomainLabel =
+                createAccountLabel(
+                        emailSecondLine
+                );
+
+        emailDomainLabel.setToolTipText(accountEmail);
+
+        boolean pro =
+                "PRO".equalsIgnoreCase(
+                        accountPlan
+                );
+
+        JLabel planLabel =
+                createAccountLabel(
+                        pro
+                                ? "Plan: Pro active"
+                                : "Plan: Free"
+                );
+
+        planLabel.setForeground(
+                pro ? GREEN : TEXT
+        );
+        planLabel.setFont(
+                planLabel.getFont().deriveFont(
+                        Font.BOLD,
+                        13f
+                )
+        );
+
+        JButton planButton =
+                new JButton(
+                        pro
+                                ? "Pro active"
+                                : "Get Pro"
+                );
+
+        planButton.setEnabled(
+                !pro && !accountBusy
+        );
+
+        if (!pro)
+        {
+            planButton.addActionListener(
+                    event -> openProCheckout()
+            );
+        }
+
+        JButton devicesButton =
+                new JButton(
+                        devicesVisible
+                                ? "Hide"
+                                : "Devices"
+                );
+
+        JLabel deviceCountLabel =
+                createAccountLabel(
+                        accountDevices.size()
+                                + " of " + maximumDevices
+                );
+
+        deviceCountLabel.setForeground(MUTED);
+
+        devicesButton.setEnabled(!accountBusy);
+        devicesButton.addActionListener(
+                event ->
+                {
+                    devicesVisible = !devicesVisible;
+                    renderAccountContent();
+                }
+        );
+
+        JButton logoutButton =
+                new JButton("Log out");
+
+        logoutButton.setEnabled(!accountBusy);
+        logoutButton.addActionListener(
+                event -> logoutAccount()
+        );
+
+        accountContent.add(signedInLabel);
+        accountContent.add(Box.createVerticalStrut(2));
+        accountContent.add(emailLabel);
+
+        if (!emailSecondLine.isEmpty())
+        {
+            accountContent.add(emailDomainLabel);
+        }
+        accountContent.add(Box.createVerticalStrut(3));
+        accountContent.add(planLabel);
+        accountContent.add(Box.createVerticalStrut(6));
+        accountContent.add(planButton);
+        accountContent.add(Box.createVerticalStrut(5));
+        accountContent.add(deviceCountLabel);
+        accountContent.add(Box.createVerticalStrut(2));
+        accountContent.add(devicesButton);
+
+        if (devicesVisible)
+        {
+            accountContent.add(Box.createVerticalStrut(5));
+            renderDevices();
+        }
+
+        accountContent.add(Box.createVerticalStrut(5));
+        accountContent.add(logoutButton);
+    }
+
+    private void renderDevices()
+    {
+        if (accountDevices.isEmpty())
+        {
+            accountContent.add(
+                    createAccountLabel(
+                            "No device details available."
+                    )
+            );
+            return;
+        }
+
+        for (RuneRadarApiClient.Device device : accountDevices)
+        {
+            JPanel row =
+                    new JPanel();
+
+            row.setLayout(
+                    new BoxLayout(
+                            row,
+                            BoxLayout.Y_AXIS
+                    )
+            );
+            row.setBackground(CARD_BACKGROUND);
+            row.setBorder(
+                    BorderFactory.createCompoundBorder(
+                            BorderFactory.createLineBorder(
+                                    new Color(70, 70, 70)
+                            ),
+                            BorderFactory.createEmptyBorder(
+                                    5,
+                                    5,
+                                    5,
+                                    5
+                            )
+                    )
+            );
+
+            String deviceName =
+                    device.getName() == null
+                            || device.getName().trim().isEmpty()
+                            ? "RuneLite device"
+                            : device.getName().trim();
+
+            JLabel label =
+                    createAccountLabel(
+                            deviceName
+                    );
+
+            label.setToolTipText(deviceName);
+
+            JButton revokeButton =
+                    new JButton("Revoke");
+
+            revokeButton.setEnabled(!accountBusy);
+            revokeButton.addActionListener(
+                    event -> revokeDevice(device)
+            );
+
+            row.add(label);
+
+            if (device.isCurrent())
+            {
+                JLabel currentDeviceLabel =
+                        createAccountLabel(
+                                "This device"
+                        );
+
+                currentDeviceLabel.setForeground(GREEN);
+                row.add(Box.createVerticalStrut(2));
+                row.add(currentDeviceLabel);
+            }
+
+            row.add(Box.createVerticalStrut(5));
+            row.add(revokeButton);
+            accountContent.add(row);
+            accountContent.add(Box.createVerticalStrut(5));
+        }
+    }
+
+    private JLabel createAccountLabel(
+            String text
+    )
+    {
+        JLabel label =
+                new JLabel(text);
+
+        label.setForeground(TEXT);
+        label.setFont(
+                label.getFont().deriveFont(
+                        13f
+                )
+        );
+
+        return label;
+    }
+
+    private void requestLoginCode()
+    {
+        final String email =
+                emailInput.getText().trim();
+
+        if (
+                email.isEmpty()
+                        || !email.contains("@")
+        )
+        {
+            setAccountStatus(
+                    "Enter a valid email address.",
+                    RED
+            );
+            return;
+        }
+
+        setAccountBusy(
+                true,
+                "Sending login code..."
+        );
+
+        startAccountThread(
+                "RuneRadar-Auth-Request",
+                () ->
+                {
+                    try
+                    {
+                        RuneRadarApiClient.RequestCodeResponse response =
+                                apiClient.requestLoginCode(email);
+
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    setAccountBusy(false, "");
+                                    setAccountStatus(
+                                            response.getTestCode() == null
+                                                    || response.getTestCode().trim().isEmpty()
+                                                    ? (response.getMessage() == null
+                                                    ? "Code sent. Check your email."
+                                                    : response.getMessage())
+                                                    : "Local test code: "
+                                                    + response.getTestCode().trim(),
+                                            GREEN
+                                    );
+                                    verificationCodeInput.requestFocusInWindow();
+                                }
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    setAccountBusy(false, "");
+                                    setAccountStatus(
+                                            friendlyAccountError(exception),
+                                            RED
+                                    );
+                                }
+                        );
+                    }
+                }
+        );
+    }
+
+    private void verifyLoginCode()
+    {
+        final String email =
+                emailInput.getText().trim();
+
+        final String code =
+                verificationCodeInput.getText().trim();
+
+        if (
+                email.isEmpty()
+                        || !email.contains("@")
+        )
+        {
+            setAccountStatus(
+                    "Enter the email address used for the code.",
+                    RED
+            );
+            return;
+        }
+
+        if (!code.matches("[0-9]{6}"))
+        {
+            setAccountStatus(
+                    "Enter the 6-digit verification code.",
+                    RED
+            );
+            return;
+        }
+
+        setAccountBusy(
+                true,
+                "Verifying code..."
+        );
+
+        startAccountThread(
+                "RuneRadar-Auth-Verify",
+                () ->
+                {
+                    try
+                    {
+                        RuneRadarApiClient.VerifyCodeResponse response =
+                                apiClient.verifyLoginCode(
+                                        email,
+                                        code,
+                                        deviceId,
+                                        "RuneLite on "
+                                                + System.getProperty(
+                                                "os.name",
+                                                "this computer"
+                                        )
+                                );
+
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    verificationCodeInput.setText("");
+                                    saveSessionToken(
+                                            response.getSessionToken()
+                                    );
+
+                                    if (response.getAccount() != null)
+                                    {
+                                        accountEmail =
+                                                response.getAccount().getEmail();
+                                        accountPlan =
+                                                response.getAccount().getPlan();
+                                        resetFreeOnlySelections();
+                                    }
+
+                                    setAccountBusy(false, "");
+                                    setAccountStatus(
+                                            "Signed in",
+                                            GREEN
+                                    );
+                                    renderAccountContent();
+                                    refreshAccount();
+                                    loadRecommendations(true, false);
+                                }
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    setAccountBusy(false, "");
+                                    setAccountStatus(
+                                            friendlyAccountError(exception),
+                                            RED
+                                    );
+                                }
+                        );
+                    }
+                }
+        );
+    }
+
+    private void refreshAccount()
+    {
+        refreshAccount(false);
+    }
+
+    private void refreshAccount(
+            boolean quiet
+    )
+    {
+        if (sessionToken.isEmpty())
+        {
+            return;
+        }
+
+        final String requestedSessionToken =
+                sessionToken;
+
+        if (!quiet)
+        {
+            setAccountBusy(
+                    true,
+                    "Loading account..."
+            );
+        }
+
+        startAccountThread(
+                "RuneRadar-Auth-Account",
+                () ->
+                {
+                    try
+                    {
+                        RuneRadarApiClient.AccountResponse response =
+                                apiClient.getAccount();
+
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    if (!requestedSessionToken.equals(sessionToken))
+                                    {
+                                        return;
+                                    }
+
+                                    if (response.getAccount() != null)
+                                    {
+                                        accountEmail =
+                                                response.getAccount().getEmail();
+                                        accountPlan =
+                                                response.getAccount().getPlan();
+                                    }
+
+                                    boolean selectionReset =
+                                            resetFreeOnlySelections();
+
+                                    accountDevices =
+                                            new ArrayList<>(
+                                                    response.getDevices()
+                                            );
+                                    maximumDevices =
+                                            response.getMaximumDevices();
+                                    if (!quiet)
+                                    {
+                                        setAccountBusy(false, "");
+                                    setAccountStatus(
+                                            "Connected",
+                                            GREEN
+                                    );
+                                    }
+                                    renderAccountContent();
+
+                                    if (selectionReset)
+                                    {
+                                        loadRecommendations(false, false);
+                                    }
+                                }
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    if (!requestedSessionToken.equals(sessionToken))
+                                    {
+                                        return;
+                                    }
+
+                                    if (
+                                            !quiet
+                                                    || isAuthenticationFailure(exception)
+                                    )
+                                    {
+                                        handleAccountRefreshFailure(exception);
+                                    }
+                                }
+                        );
+                    }
+                }
+        );
+    }
+
+    private void revokeDevice(
+            RuneRadarApiClient.Device device
+    )
+    {
+        if (
+                device == null
+                        || device.getId() == null
+                        || device.getId().trim().isEmpty()
+        )
+        {
+            return;
+        }
+
+        int choice =
+                JOptionPane.showConfirmDialog(
+                        this,
+                        device.isCurrent()
+                                ? "Revoke this device and sign out?"
+                                : "Revoke this RuneRadar device?",
+                        "Revoke device",
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.WARNING_MESSAGE
+                );
+
+        if (choice != JOptionPane.YES_OPTION)
+        {
+            return;
+        }
+
+        setAccountBusy(
+                true,
+                "Revoking device..."
+        );
+
+        startAccountThread(
+                "RuneRadar-Auth-Revoke",
+                () ->
+                {
+                    try
+                    {
+                        apiClient.revokeDevice(
+                                device.getId()
+                        );
+
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    if (device.isCurrent())
+                                    {
+                                        clearAccountSession(
+                                                "This device was revoked."
+                                        );
+                                    }
+                                    else
+                                    {
+                                        setAccountBusy(false, "");
+                                        setAccountStatus(
+                                                "Device revoked.",
+                                                GREEN
+                                        );
+                                        refreshAccount();
+                                    }
+                                }
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    if (isAuthenticationFailure(exception))
+                                    {
+                                        clearAccountSession(
+                                                "Your session is no longer valid."
+                                        );
+                                    }
+                                    else
+                                    {
+                                        setAccountBusy(false, "");
+                                        setAccountStatus(
+                                                friendlyAccountError(exception),
+                                                RED
+                                        );
+                                    }
+                                }
+                        );
+                    }
+                }
+        );
+    }
+
+    private void logoutAccount()
+    {
+        setAccountBusy(
+                true,
+                "Signing out..."
+        );
+
+        startAccountThread(
+                "RuneRadar-Auth-Logout",
+                () ->
+                {
+                    String status =
+                            "Signed out.";
+
+                    try
+                    {
+                        apiClient.logout();
+                    }
+                    catch (Exception exception)
+                    {
+                        status =
+                                "Signed out locally; server unavailable.";
+                    }
+
+                    final String finalStatus = status;
+
+                    SwingUtilities.invokeLater(
+                            () -> clearAccountSession(finalStatus)
+                    );
+                }
+        );
+    }
+
+    private void openProCheckout()
+    {
+        if (sessionToken.isEmpty() || accountBusy)
+        {
+            return;
+        }
+
+        final String requestedSessionToken =
+                sessionToken;
+
+        setAccountBusy(
+                true,
+                "Preparing secure checkout..."
+        );
+
+        startAccountThread(
+                "RuneRadar-Billing-Checkout",
+                () ->
+                {
+                    try
+                    {
+                        RuneRadarApiClient.CheckoutSessionResponse response =
+                                apiClient.createCheckoutSession();
+
+                        String checkoutUrl =
+                                response.getCheckoutUrl();
+
+                        if (
+                                checkoutUrl == null
+                                        || checkoutUrl.trim().isEmpty()
+                        )
+                        {
+                            throw new RuntimeException(
+                                    "RuneRadar checkout returned no link."
+                            );
+                        }
+
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    if (!requestedSessionToken.equals(sessionToken))
+                                    {
+                                        return;
+                                    }
+
+                                    setAccountBusy(false, "");
+                                    LinkBrowser.browse(checkoutUrl.trim());
+                                    setAccountStatus(
+                                            "Checkout opened. Refresh after payment.",
+                                            GOLD
+                                    );
+                                }
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        SwingUtilities.invokeLater(
+                                () ->
+                                {
+                                    if (!requestedSessionToken.equals(sessionToken))
+                                    {
+                                        return;
+                                    }
+
+                                    if (isAuthenticationFailure(exception))
+                                    {
+                                        clearAccountSession(
+                                                "Your session expired. Sign in again."
+                                        );
+                                    }
+                                    else
+                                    {
+                                        setAccountBusy(false, "");
+                                        setAccountStatus(
+                                                friendlyAccountError(exception),
+                                                RED
+                                        );
+                                    }
+                                }
+                        );
+                    }
+                }
+        );
+    }
+
+    private void handleAccountRefreshFailure(
+            Exception exception
+    )
+    {
+        if (isAuthenticationFailure(exception))
+        {
+            clearAccountSession(
+                    "Your session expired or was revoked. Sign in again."
+            );
+            return;
+        }
+
+        setAccountBusy(false, "");
+        setAccountStatus(
+                friendlyAccountError(exception),
+                RED
+        );
+        renderAccountContent();
+    }
+
+    private void clearAccountSession(
+            String status
+    )
+    {
+        saveSessionToken("");
+        accountEmail = "";
+        accountPlan = "FREE";
+        resetFreeOnlySelections();
+        accountDevices.clear();
+        devicesVisible = false;
+        accountBusy = false;
+        setAccountStatus(status, MUTED);
+        renderAccountContent();
+    }
+
+    private boolean isAuthenticationFailure(
+            Exception exception
+    )
+    {
+        return exception instanceof RuneRadarApiClient.ApiException
+                && ((RuneRadarApiClient.ApiException) exception)
+                .isAuthenticationFailure();
+    }
+
+    private String friendlyAccountError(
+            Exception exception
+    )
+    {
+        String message =
+                exception == null
+                        ? null
+                        : exception.getMessage();
+
+        if (
+                message == null
+                        || message.trim().isEmpty()
+        )
+        {
+            return "RuneRadar account service is unavailable.";
+        }
+
+        return message.trim();
+    }
+
+    private void setAccountBusy(
+            boolean busy,
+            String status
+    )
+    {
+        accountBusy = busy;
+        setAccountStatus(
+                status,
+                busy ? GOLD : MUTED
+        );
+        renderAccountContent();
+    }
+
+    private void setAccountStatus(
+            String status,
+            Color color
+    )
+    {
+        accountStatusLabel.setText(
+                status == null ? "" : status
+        );
+        accountStatusLabel.setForeground(color);
+    }
+
+    private void startAccountThread(
+            String name,
+            Runnable task
+    )
+    {
+        Thread thread =
+                new Thread(task);
+
+        thread.setName(name);
+        thread.setDaemon(true);
+        thread.start();
+    }
 
     // ========================================================
     // CASH
@@ -360,6 +1392,19 @@ public class RuneRadarPanel extends PluginPanel
 
         this.configManager = configManager;
 
+        deviceId =
+                getOrCreateDeviceId();
+
+        sessionToken =
+                getPersistedValue(
+                        AUTH_SESSION_TOKEN_KEY,
+                        ""
+                );
+
+        RuneRadarApiClient.setSessionToken(
+                sessionToken
+        );
+
         currentResultMode = loadPersistedChoice(
                 RESULT_MODE_KEY,
                 "STRONG",
@@ -468,6 +1513,8 @@ public class RuneRadarPanel extends PluginPanel
 
         updateSortSelector();
 
+        renderAccountContent();
+
         autoRefreshTimer =
                 new Timer(
                         AUTO_REFRESH_SECONDS * 1000,
@@ -501,6 +1548,11 @@ public class RuneRadarPanel extends PluginPanel
         autoRefreshTimer.start();
 
         freshnessTimer.start();
+
+        if (!sessionToken.isEmpty())
+        {
+            refreshAccount();
+        }
 
         loadRecommendations(
                 false,
@@ -571,6 +1623,62 @@ public class RuneRadarPanel extends PluginPanel
         }
     }
 
+    private String getOrCreateDeviceId()
+    {
+        String savedDeviceId =
+                getPersistedValue(
+                        AUTH_DEVICE_ID_KEY,
+                        ""
+                );
+
+        if (!savedDeviceId.isEmpty())
+        {
+            return savedDeviceId;
+        }
+
+        String newDeviceId =
+                UUID.randomUUID().toString();
+
+        persistSetting(
+                AUTH_DEVICE_ID_KEY,
+                newDeviceId
+        );
+
+        return newDeviceId;
+    }
+
+    private void saveSessionToken(
+            String token
+    )
+    {
+        sessionToken =
+                token == null
+                        ? ""
+                        : token.trim();
+
+        RuneRadarApiClient.setSessionToken(
+                sessionToken
+        );
+
+        if (configManager != null)
+        {
+            if (sessionToken.isEmpty())
+            {
+                configManager.unsetConfiguration(
+                        CONFIG_GROUP,
+                        AUTH_SESSION_TOKEN_KEY
+                );
+            }
+            else
+            {
+                persistSetting(
+                        AUTH_SESSION_TOKEN_KEY,
+                        sessionToken
+                );
+            }
+        }
+    }
+
     // ========================================================
     // PANEL LIFECYCLE
     // ========================================================
@@ -599,6 +1707,13 @@ public class RuneRadarPanel extends PluginPanel
         freshnessTimer.stop();
 
         super.removeNotify();
+    }
+
+    public void stop()
+    {
+        autoRefreshTimer.stop();
+        freshnessTimer.stop();
+        requestNumber++;
     }
 
     // ========================================================
@@ -679,6 +1794,16 @@ public class RuneRadarPanel extends PluginPanel
         wrapper.add(
                 Box.createVerticalStrut(
                         12
+                )
+        );
+
+        wrapper.add(
+                createAccountSection()
+        );
+
+        wrapper.add(
+                Box.createVerticalStrut(
+                        10
                 )
         );
 
@@ -1115,6 +2240,9 @@ public class RuneRadarPanel extends PluginPanel
 
     private void updateResultModeButtons()
     {
+        boolean pro =
+                hasProAccess();
+
         strongButton.setEnabled(
                 !blockingLoad
                         && !currentResultMode.equals(
@@ -1123,10 +2251,17 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         moreButton.setEnabled(
-                !blockingLoad
+                pro
+                        && !blockingLoad
                         && !currentResultMode.equals(
                         "MORE"
                 )
+        );
+
+        moreButton.setToolTipText(
+                pro
+                        ? "Show the expanded RuneRadar Pro list"
+                        : "RuneRadar Pro required"
         );
     }
 
@@ -1276,6 +2411,9 @@ public class RuneRadarPanel extends PluginPanel
 
     private void updateFlipTypeButtons()
     {
+        boolean pro =
+                hasProAccess();
+
         fastButton.setEnabled(
                 !blockingLoad
                         && !currentFlipType.equals(
@@ -1298,10 +2436,17 @@ public class RuneRadarPanel extends PluginPanel
         );
 
         highProfitButton.setEnabled(
-                !blockingLoad
+                pro
+                        && !blockingLoad
                         && !currentFlipType.equals(
                         "HIGH_PROFIT"
                 )
+        );
+
+        highProfitButton.setToolTipText(
+                pro
+                        ? "Show high-profit RuneRadar Pro opportunities"
+                        : "RuneRadar Pro required"
         );
 
         allButton.setEnabled(
@@ -2411,6 +3556,20 @@ public class RuneRadarPanel extends PluginPanel
                                                 return;
                                             }
 
+                                            if (
+                                                    response.getPlan() != null
+                                                            && !response.getPlan().trim().isEmpty()
+                                                            && !response.getPlan().equalsIgnoreCase(
+                                                            accountPlan
+                                                    )
+                                            )
+                                            {
+                                                accountPlan =
+                                                        response.getPlan();
+                                                resetFreeOnlySelections();
+                                                renderAccountContent();
+                                            }
+
                                             defaultRecommendations =
                                                     new ArrayList<>(
                                                             response.getRecommendations()
@@ -2459,6 +3618,11 @@ public class RuneRadarPanel extends PluginPanel
                                             }
 
                                             showCurrentFlip();
+
+                                            if (!sessionToken.isEmpty())
+                                            {
+                                                refreshAccount(true);
+                                            }
                                         }
                                 );
                             }

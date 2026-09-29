@@ -3,9 +3,13 @@ package com.runeradar;
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 
@@ -26,6 +30,14 @@ public class RuneRadarApiClient
 
     private static String pluginVersion =
             "";
+
+    private static volatile String sessionToken =
+            "";
+
+    private static final MediaType JSON_MEDIA_TYPE =
+            MediaType.parse(
+                    "application/json; charset=utf-8"
+            );
 
     public static void setGson(
             Gson injectedGson
@@ -97,6 +109,16 @@ public class RuneRadarApiClient
                 );
     }
 
+    public static void setSessionToken(
+            String accountSessionToken
+    )
+    {
+        sessionToken =
+                cleanHeaderValue(
+                        accountSessionToken
+                );
+    }
+
     private static String cleanHeaderValue(
             String value
     )
@@ -149,7 +171,183 @@ public class RuneRadarApiClient
             );
         }
 
+        if (!sessionToken.isEmpty())
+        {
+            builder.header(
+                    "Authorization",
+                    "Bearer " + sessionToken
+            );
+        }
+
         return builder;
+    }
+
+    public RequestCodeResponse requestLoginCode(
+            String email
+    ) throws Exception
+    {
+        Map<String, String> payload =
+                new HashMap<>();
+
+        payload.put("email", email);
+
+        return postJson(
+                "/auth/request-code",
+                payload,
+                RequestCodeResponse.class,
+                false
+        );
+    }
+
+    public VerifyCodeResponse verifyLoginCode(
+            String email,
+            String code,
+            String deviceId,
+            String deviceName
+    ) throws Exception
+    {
+        Map<String, String> payload =
+                new HashMap<>();
+
+        payload.put("email", email);
+        payload.put("code", code);
+        payload.put("device_id", deviceId);
+        payload.put("device_name", deviceName);
+
+        return postJson(
+                "/auth/verify-code",
+                payload,
+                VerifyCodeResponse.class,
+                false
+        );
+    }
+
+    public AccountResponse getAccount() throws Exception
+    {
+        Request request =
+                createRequestBuilder(
+                        API_BASE_URL + "/auth/account"
+                ).build();
+
+        return executeJson(
+                request,
+                AccountResponse.class
+        );
+    }
+
+    public BasicResponse revokeDevice(
+            String deviceId
+    ) throws Exception
+    {
+        Map<String, String> payload =
+                new HashMap<>();
+
+        payload.put("device_id", deviceId);
+
+        return postJson(
+                "/auth/devices/revoke",
+                payload,
+                BasicResponse.class,
+                true
+        );
+    }
+
+    public BasicResponse logout() throws Exception
+    {
+        return postJson(
+                "/auth/logout",
+                Collections.emptyMap(),
+                BasicResponse.class,
+                true
+        );
+    }
+
+    public CheckoutSessionResponse createCheckoutSession() throws Exception
+    {
+        return postJson(
+                "/billing/checkout-session",
+                Collections.emptyMap(),
+                CheckoutSessionResponse.class,
+                true
+        );
+    }
+
+    private <T> T postJson(
+            String endpoint,
+            Object payload,
+            Class<T> responseClass,
+            boolean authenticated
+    ) throws Exception
+    {
+        RequestBody body =
+                RequestBody.create(
+                        JSON_MEDIA_TYPE,
+                        getInjectedGson().toJson(payload)
+                );
+
+        Request.Builder builder =
+                createRequestBuilder(
+                        API_BASE_URL + endpoint
+                );
+
+        if (!authenticated)
+        {
+            builder.removeHeader("Authorization");
+        }
+
+        return executeJson(
+                builder.post(body).build(),
+                responseClass
+        );
+    }
+
+    private <T> T executeJson(
+            Request request,
+            Class<T> responseClass
+    ) throws Exception
+    {
+        String responseText;
+
+        try (
+                Response response =
+                        getInjectedHttpClient()
+                                .newCall(request)
+                                .execute()
+        )
+        {
+            if (!response.isSuccessful())
+            {
+                throw createApiException(response);
+            }
+
+            ResponseBody responseBody =
+                    response.body();
+
+            if (responseBody == null)
+            {
+                throw new RuntimeException(
+                        "RuneRadar API returned no response body."
+                );
+            }
+
+            responseText =
+                    responseBody.string();
+        }
+
+        T parsed =
+                getInjectedGson().fromJson(
+                        responseText,
+                        responseClass
+                );
+
+        if (parsed == null)
+        {
+            throw new RuntimeException(
+                    "RuneRadar API returned no data."
+            );
+        }
+
+        return parsed;
     }
 
     public ApiResponse getRecommendations(
@@ -338,6 +536,9 @@ public class RuneRadarApiClient
             Response response
     )
     {
+        String code =
+                "HTTP_" + response.code();
+
         String message =
                 "RuneRadar API returned HTTP "
                         + response.code();
@@ -363,20 +564,210 @@ public class RuneRadarApiClient
                 {
                     message = apiError.message.trim();
                 }
+
+                if (
+                        apiError != null
+                                && apiError.code != null
+                                && !apiError.code.trim().isEmpty()
+                )
+                {
+                    code = apiError.code.trim();
+                }
             }
             catch (Exception ignored)
             {
             }
         }
 
-        return new RuntimeException(
+        return new ApiException(
+                response.code(),
+                code,
                 message
         );
     }
 
     private static class ApiErrorResponse
     {
+        private String code;
+
         private String message;
+    }
+
+    public static class ApiException extends RuntimeException
+    {
+        private final int statusCode;
+
+        private final String code;
+
+        private ApiException(
+                int statusCode,
+                String code,
+                String message
+        )
+        {
+            super(message);
+            this.statusCode = statusCode;
+            this.code = code;
+        }
+
+        public boolean isAuthenticationFailure()
+        {
+            return statusCode == 401
+                    || "AUTH_REQUIRED".equals(code)
+                    || "INVALID_SESSION".equals(code)
+                    || "SESSION_EXPIRED".equals(code);
+        }
+    }
+
+    public static class BasicResponse
+    {
+        private String status;
+
+        private String message;
+
+        public String getMessage()
+        {
+            return message;
+        }
+    }
+
+    public static class RequestCodeResponse extends BasicResponse
+    {
+        @SerializedName("expires_in")
+        private long expiresIn;
+
+        @SerializedName("test_code")
+        private String testCode;
+
+        public long getExpiresIn()
+        {
+            return expiresIn;
+        }
+
+        public String getTestCode()
+        {
+            return testCode;
+        }
+    }
+
+    public static class VerifyCodeResponse extends BasicResponse
+    {
+        @SerializedName("session_token")
+        private String sessionToken;
+
+        private Account account;
+
+        private Device device;
+
+        public String getSessionToken()
+        {
+            return sessionToken;
+        }
+
+        public Account getAccount()
+        {
+            return account;
+        }
+
+        public Device getDevice()
+        {
+            return device;
+        }
+    }
+
+    public static class AccountResponse extends BasicResponse
+    {
+        private Account account;
+
+        private List<Device> devices;
+
+        @SerializedName("maximum_devices")
+        private int maximumDevices;
+
+        public Account getAccount()
+        {
+            return account;
+        }
+
+        public List<Device> getDevices()
+        {
+            return devices == null
+                    ? Collections.emptyList()
+                    : devices;
+        }
+
+        public int getMaximumDevices()
+        {
+            return maximumDevices;
+        }
+    }
+
+    public static class CheckoutSessionResponse extends BasicResponse
+    {
+        @SerializedName("checkout_url")
+        private String checkoutUrl;
+
+        @SerializedName("expires_at")
+        private long expiresAt;
+
+        public String getCheckoutUrl()
+        {
+            return checkoutUrl;
+        }
+
+        public long getExpiresAt()
+        {
+            return expiresAt;
+        }
+    }
+
+    public static class Account
+    {
+        private String email;
+
+        private String plan;
+
+        public String getEmail()
+        {
+            return email;
+        }
+
+        public String getPlan()
+        {
+            return plan;
+        }
+    }
+
+    public static class Device
+    {
+        private String id;
+
+        private String name;
+
+        private boolean current;
+
+        @SerializedName("last_seen")
+        private long lastSeen;
+
+        public String getId()
+        {
+            return id;
+        }
+
+        public String getName()
+        {
+            return name;
+        }
+
+        public boolean isCurrent()
+        {
+            return current;
+        }
+
+        public long getLastSeen()
+        {
+            return lastSeen;
+        }
     }
 
     public static class MarketItemResponse

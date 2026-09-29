@@ -231,6 +231,11 @@ public class RuneRadarPlugin extends Plugin
                 grandExchangeOverlay =
                         null;
 
+                if (panel != null)
+                {
+                        panel.stop();
+                }
+
                 panel =
                         null;
 

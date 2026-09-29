@@ -20,6 +20,8 @@ def runeLiteVersion = 'latest.release'
 
 def pluginMainClass = 'com.runeradar.RuneRadarPluginTest'
 
+def apiBaseUrlPropertyName = 'runeradar.apiBaseUrl'
+
 dependencies {
 	compileOnly group: 'net.runelite', name: 'client', version: runeLiteVersion
 
@@ -43,6 +45,11 @@ tasks.register('run', JavaExec) {
 	mainClass = pluginMainClass
 
 	jvmArgs "-ea"
+
+	def apiBaseUrl = System.getProperty(apiBaseUrlPropertyName)
+	if (apiBaseUrl != null && !apiBaseUrl.trim().isEmpty()) {
+		systemProperty apiBaseUrlPropertyName, apiBaseUrl
+	}
 
 	args "--developer-mode", "--debug"
 }
